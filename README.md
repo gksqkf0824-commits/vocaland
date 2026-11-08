@@ -98,6 +98,16 @@ vocaland/
 - `feature/기능명` : 기능별 작업 브랜치  
   예) `feature/be-core`, `feature/fe-basketball`
 
+### 프론트엔드 브랜치별 작업 범위
+
+| 브랜치 | 작업 범위 |
+|---|---|
+| `feature/main_ui` | 메인 화면, 화면 전환 |
+| `feature/study` | 단어 학습 및 카드 짝 맞추기 복습 |
+| `feature/game` | 산성비 게임 및 농구 게임 |
+| `feature/store` | 상점 및 스킨 선택·적용 |
+| `feature/scoreboard` | 게임별 최고 점수 및 사용자 순위 표시 |
+
 ### 작업 흐름
 1. 작업 전 `git pull origin main` 으로 최신화
 2. `git checkout -b feature/기능명` 으로 브랜치 생성
