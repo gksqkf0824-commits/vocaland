@@ -2,8 +2,10 @@ package vocaland.ui;
 
 import java.awt.CardLayout;
 import java.awt.Dimension;
+import java.util.List;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
+import vocaland.service.WordService;
 import vocaland.ui.rain.AcidRainPanel;
 
 public class MainFrame extends JFrame {
@@ -18,7 +20,7 @@ public class MainFrame extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         MainPanel mainPanel = new MainPanel();
-        AcidRainPanel rainPanel = new AcidRainPanel();
+        AcidRainPanel rainPanel = createRainPanel();
 
         // 메인 → 산성비
         mainPanel.setOnOpenRain(() -> {
@@ -35,5 +37,15 @@ public class MainFrame extends JFrame {
         setMinimumSize(new Dimension(800, 650));
         setSize(1000, 750);
         setLocationRelativeTo(null);
+    }
+
+    // words.txt 단어로 산성비 생성, 파일이 비어 있으면 게임에 들어 있는 임시 단어 사용
+    private AcidRainPanel createRainPanel() {
+        List<String[]> words = new WordService().getGameWords();
+        if (words.isEmpty()) {
+            System.err.println("[words.txt] 단어가 없어 임시 단어로 산성비를 시작합니다.");
+            return new AcidRainPanel();
+        }
+        return new AcidRainPanel(words);
     }
 }
