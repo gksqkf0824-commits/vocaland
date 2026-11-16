@@ -18,11 +18,12 @@ import java.util.function.BiConsumer;
  * setOnGameOver()         : 게임이 끝났을 때 점수·놓친 단어를 받을 코드 등록 (백엔드용)
  * startGamePlay()         : 선택한 모드와 난이도로 실제 게임 시작
  * showGameOverOverlay()   : 게임 오버 결과 카드 표시 및 콜백 호출
- * createTopBar()          : 상단 (제목, 남은 기회, 점수, 메인으로)
+ * createTopBar()          : 상단 (제목, 익스트림 전용 포물선 스위치 버튼, 남은 기회, 점수, 메인으로)
  * createWrongReviewBox()  : 우측 (오답 복습 목록)
  * createBottomHelpBar()   : 하단 (키보드 조작법 안내 문구)
- * createStartOverlay()    : 시작 대기 안내창 (모드 선택, 이지/하드 난이도 선택)
+ * createStartOverlay()    : 시작 대기 안내창 (모드 선택, 이지/하드/익스트림 난이도 선택)
  * createGameOverOverlay() : 게임 오버 안내창 (최종 점수, 다시하기, 모드 변경, 메인으로)
+ * syncExtremeSwitchUI()   : 익스트림 모드 여부에 따른 상단 바 입체 스위치 표시 및 색상 동기화
  * main()                  : 혼자 테스트용 실행
  */
 public class BasketballPanel extends JPanel {
@@ -34,6 +35,9 @@ public class BasketballPanel extends JPanel {
     private static final Color BLUE_BTN_SHADOW = new Color(66, 145, 210);
     private static final Color RED_BTN = new Color(239, 83, 80);
     private static final Color RED_BTN_SHADOW = new Color(198, 40, 40);
+    private static final Color PURPLE_BTN = new Color(156, 39, 176);
+    private static final Color PURPLE_BTN_END = new Color(94, 53, 177);
+    private static final Color PURPLE_BTN_SHADOW = new Color(69, 39, 160);
     private static final Color MINT_CARD = new Color(241, 248, 233);
     private static final Color BORDER_BLACK = Color.BLACK;
 
@@ -47,6 +51,7 @@ public class BasketballPanel extends JPanel {
     private BiConsumer<Integer, List<String>> onGameOver;
 
     private JLabel titleLabel;
+    private PillButton extremeSwitchBtn;
     private JLabel lifeTextLabel;
     private JLabel scoreLabel;
     private PillButton backBtn;
@@ -151,6 +156,7 @@ public class BasketballPanel extends JPanel {
         });
 
         updateTopStatus();
+        syncExtremeSwitchUI();
     }
 
     private void initHeartIcons() {
@@ -184,12 +190,18 @@ public class BasketballPanel extends JPanel {
 
     private static class PillButton extends JButton {
         private Color mainColor;
+        private Color gradientEndColor;
         private Color shadowColor;
         private boolean isPressed = false;
 
         public PillButton(String text, Color mainColor, Color shadowColor) {
+            this(text, mainColor, null, shadowColor);
+        }
+
+        public PillButton(String text, Color mainColor, Color gradientEndColor, Color shadowColor) {
             super(text);
             this.mainColor = mainColor;
+            this.gradientEndColor = gradientEndColor;
             this.shadowColor = shadowColor;
             setFont(new Font("맑은 고딕", Font.BOLD, 15));
             setForeground(Color.BLACK);
@@ -216,6 +228,7 @@ public class BasketballPanel extends JPanel {
 
         public void setButtonColors(Color main, Color shadow) {
             this.mainColor = main;
+            this.gradientEndColor = null;
             this.shadowColor = shadow;
             repaint();
         }
@@ -233,7 +246,11 @@ public class BasketballPanel extends JPanel {
             g2.setColor(shadowColor);
             g2.fillRoundRect(0, shadowOffset, w, h - shadowOffset, 22, 22);
 
-            g2.setColor(mainColor);
+            if (gradientEndColor != null) {
+                g2.setPaint(new GradientPaint(0, yOffset, mainColor, w, h - shadowOffset, gradientEndColor));
+            } else {
+                g2.setColor(mainColor);
+            }
             g2.fillRoundRect(0, yOffset, w, h - shadowOffset, 22, 22);
 
             FontMetrics fm = g2.getFontMetrics();
@@ -306,19 +323,36 @@ public class BasketballPanel extends JPanel {
         PillButton easyBtn = new PillButton("이지 모드", BLUE_BTN, BLUE_BTN_SHADOW);
         easyBtn.setForeground(Color.WHITE);
         easyBtn.addActionListener(e -> {
-            game.setHardMode(false);
+            game.setDifficulty(BasketballGame.Difficulty.EASY);
             startGamePlay();
         });
 
         PillButton hardBtn = new PillButton("하드 모드", RED_BTN, RED_BTN_SHADOW);
         hardBtn.setForeground(Color.WHITE);
         hardBtn.addActionListener(e -> {
-            game.setHardMode(true);
+            game.setDifficulty(BasketballGame.Difficulty.HARD);
             startGamePlay();
         });
 
         diffBtnRow.add(easyBtn);
         diffBtnRow.add(hardBtn);
+
+        JPanel expertBtnRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        expertBtnRow.setBackground(BG_WHITE);
+
+        PillButton expertBtn = new PillButton("익스퍼트 모드", PURPLE_BTN, PURPLE_BTN_END, PURPLE_BTN_SHADOW);
+        expertBtn.setForeground(Color.WHITE);
+        expertBtn.addActionListener(e -> {
+            game.setDifficulty(BasketballGame.Difficulty.EXTREME);
+            startGamePlay();
+        });
+
+        expertBtnRow.add(expertBtn);
+
+        JLabel expertDesc = new JLabel("※ 물리 엔진 강화");
+        expertDesc.setFont(new Font("맑은 고딕", Font.BOLD, 12));
+        expertDesc.setForeground(new Color(106, 27, 154));
+        expertDesc.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         card.add(title);
         card.add(Box.createVerticalStrut(8));
@@ -331,6 +365,10 @@ public class BasketballPanel extends JPanel {
         card.add(diffTitle);
         card.add(Box.createVerticalStrut(8));
         card.add(diffBtnRow);
+        card.add(Box.createVerticalStrut(10));
+        card.add(expertBtnRow);
+        card.add(Box.createVerticalStrut(6));
+        card.add(expertDesc);
 
         return card;
     }
@@ -365,6 +403,7 @@ public class BasketballPanel extends JPanel {
             game.toReadyState();
             gameOverOverlay.setVisible(false);
             startOverlay.setVisible(true);
+            syncExtremeSwitchUI();
             canvas.repaint();
         });
 
@@ -398,6 +437,7 @@ public class BasketballPanel extends JPanel {
         startOverlay.setVisible(false);
         gameOverOverlay.setVisible(false);
         game.startNewGame();
+        syncExtremeSwitchUI();
         updateTopStatus();
         refreshWrongList();
         canvas.repaint();
@@ -412,6 +452,24 @@ public class BasketballPanel extends JPanel {
         gameOverOverlay.setVisible(true);
     }
 
+    private void syncExtremeSwitchUI() {
+        if (extremeSwitchBtn == null) {
+            return;
+        }
+        boolean showSwitch = game.isExtremeMode() && (game.getState() != BasketballGame.State.READY);
+        extremeSwitchBtn.setVisible(showSwitch);
+
+        if (game.isExtremeHardTrajectory()) {
+            extremeSwitchBtn.setText("포물선: 하드");
+            extremeSwitchBtn.setButtonColors(RED_BTN, RED_BTN_SHADOW);
+            extremeSwitchBtn.setForeground(Color.WHITE);
+        } else {
+            extremeSwitchBtn.setText("포물선: 이지");
+            extremeSwitchBtn.setButtonColors(BLUE_BTN, BLUE_BTN_SHADOW);
+            extremeSwitchBtn.setForeground(Color.WHITE);
+        }
+    }
+
     private JPanel createTopBar() {
         JPanel topBar = new JPanel(new BorderLayout());
         topBar.setBackground(BG_WHITE);
@@ -423,6 +481,16 @@ public class BasketballPanel extends JPanel {
 
         JPanel rightInfo = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         rightInfo.setBackground(BG_WHITE);
+
+        extremeSwitchBtn = new PillButton("포물선: 하드", RED_BTN, RED_BTN_SHADOW);
+        extremeSwitchBtn.setForeground(Color.WHITE);
+        extremeSwitchBtn.setVisible(false);
+        extremeSwitchBtn.addActionListener(e -> {
+            game.setExtremeHardTrajectory(!game.isExtremeHardTrajectory());
+            syncExtremeSwitchUI();
+            canvas.repaint();
+            requestFocusInWindow();
+        });
 
         JPanel lifeBox = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 4));
         lifeBox.setBackground(BG_WHITE);
@@ -461,6 +529,7 @@ public class BasketballPanel extends JPanel {
             }
         });
 
+        rightInfo.add(extremeSwitchBtn);
         rightInfo.add(lifeBox);
         rightInfo.add(scoreBox);
         rightInfo.add(backBtn);
@@ -578,11 +647,12 @@ public class BasketballPanel extends JPanel {
             return;
         }
 
-        double uiScale = Math.min(1.0, Math.min(w / 1020.0, h / 620.0));
-        uiScale = Math.max(0.6, uiScale);
+        double uiScale = Math.min(1.45, Math.min(w / 1020.0, h / 620.0));
+        uiScale = Math.max(0.65, uiScale);
 
         wrongReviewBox.setPreferredSize(new Dimension((int) (250 * uiScale), 0));
         titleLabel.setFont(new Font("맑은 고딕", Font.BOLD, (int) (26 * uiScale)));
+        extremeSwitchBtn.setFont(new Font("맑은 고딕", Font.BOLD, (int) (14 * uiScale)));
         lifeTextLabel.setFont(new Font("맑은 고딕", Font.BOLD, (int) (15 * uiScale)));
         scoreLabel.setFont(new Font("맑은 고딕", Font.BOLD, (int) (16 * uiScale)));
         wrongHeaderLabel.setFont(new Font("맑은 고딕", Font.BOLD, (int) (16 * uiScale)));
@@ -604,6 +674,7 @@ public class BasketballPanel extends JPanel {
         game.toReadyState();
         startOverlay.setVisible(true);
         gameOverOverlay.setVisible(false);
+        syncExtremeSwitchUI();
         updateTopStatus();
         refreshWrongList();
         if (!gameTimer.isRunning()) {
