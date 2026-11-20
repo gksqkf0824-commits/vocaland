@@ -19,6 +19,8 @@ public class MainPanel extends JPanel {
             "background.png", BACKGROUND_TILE_SIZE, BACKGROUND_TILE_SIZE, false
     );
 
+    private Runnable onOpenRain;
+
     public MainPanel() {
         setLayout(new BorderLayout(0, 12));
         setBackground(BACKGROUND);
@@ -26,6 +28,11 @@ public class MainPanel extends JPanel {
 
         add(createHeader(), BorderLayout.NORTH);
         add(createContent(), BorderLayout.CENTER);
+    }
+
+    // 산성비 버튼을 눌렀을 때 실행할 코드 등록 (화면 전환은 MainFrame이 담당)
+    public void setOnOpenRain(Runnable onOpenRain) {
+        this.onOpenRain = onOpenRain;
     }
 
     @Override
@@ -129,7 +136,7 @@ public class MainPanel extends JPanel {
         ));
         button.setFont(font(26));
         applyButtonLogo(button, imageName, maxWidth, maxHeight);
-        button.addActionListener(e -> showPreparing(name));
+        button.addActionListener(e -> openMenu(name));
         return button;
     }
 
@@ -216,6 +223,14 @@ public class MainPanel extends JPanel {
 
     private Font font(int size) {
         return new Font(Font.DIALOG, Font.BOLD, size);
+    }
+
+    private void openMenu(String name) {
+        if (name.equals("산성비") && onOpenRain != null) {
+            onOpenRain.run();
+        } else {
+            showPreparing(name);
+        }
     }
 
     private void openStore() {
