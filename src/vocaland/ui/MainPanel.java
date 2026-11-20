@@ -20,6 +20,7 @@ public class MainPanel extends JPanel {
     );
 
     private Runnable onOpenRain;
+    private Runnable onOpenBasketball;
 
     public MainPanel() {
         setLayout(new BorderLayout(0, 12));
@@ -33,6 +34,11 @@ public class MainPanel extends JPanel {
     // 산성비 버튼을 눌렀을 때 실행할 코드 등록 (화면 전환은 MainFrame이 담당)
     public void setOnOpenRain(Runnable onOpenRain) {
         this.onOpenRain = onOpenRain;
+    }
+
+    // 농구 버튼을 눌렀을 때 실행할 코드 등록 (화면 전환은 MainFrame이 담당)
+    public void setOnOpenBasketball(Runnable onOpenBasketball) {
+        this.onOpenBasketball = onOpenBasketball;
     }
 
     @Override
@@ -228,6 +234,8 @@ public class MainPanel extends JPanel {
     private void openMenu(String name) {
         if (name.equals("산성비") && onOpenRain != null) {
             onOpenRain.run();
+        } else if (name.equals("농구") && onOpenBasketball != null) {
+            onOpenBasketball.run();
         } else {
             showPreparing(name);
         }

@@ -6,11 +6,13 @@ import java.util.List;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 import vocaland.service.WordService;
+import vocaland.ui.basketball.BasketballPanel;
 import vocaland.ui.rain.AcidRainPanel;
 
 public class MainFrame extends JFrame {
     private static final String MAIN = "main";
     private static final String RAIN = "rain";
+    private static final String BASKETBALL = "basketball";
 
     private final CardLayout cards = new CardLayout();
     private final JPanel screens = new JPanel(cards);
@@ -30,8 +32,21 @@ public class MainFrame extends JFrame {
         // 산성비 → 메인 (AcidRainPanel이 나가기 전에 stop()을 호출함)
         rainPanel.setOnBackToMain(() -> cards.show(screens, MAIN));
 
+        // 메인 → 농구 (words.txt 단어 사용, 비어 있으면 BasketballPanel이 임시 단어 사용)
+        BasketballPanel basketballPanel = new BasketballPanel(new WordService().getGameWords());
+        mainPanel.setOnOpenBasketball(() -> {
+            cards.show(screens, BASKETBALL);
+            basketballPanel.start();
+        });
+        // 농구 → 메인
+        basketballPanel.setOnBackToMain(() -> {
+            basketballPanel.stop();
+            cards.show(screens, MAIN);
+        });
+
         screens.add(mainPanel, MAIN);
         screens.add(rainPanel, RAIN);
+        screens.add(basketballPanel, BASKETBALL);
         setContentPane(screens);
 
         setMinimumSize(new Dimension(800, 650));
