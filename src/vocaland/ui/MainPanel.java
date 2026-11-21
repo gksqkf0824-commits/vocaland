@@ -7,6 +7,7 @@ import java.io.IOException;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import vocaland.ui.scoreboard.ScoreboardPanel;
 
 public class MainPanel extends JPanel {
     private static final Color BACKGROUND = new Color(250, 251, 248);
@@ -129,7 +130,13 @@ public class MainPanel extends JPanel {
         ));
         button.setFont(font(26));
         applyButtonLogo(button, imageName, maxWidth, maxHeight);
-        button.addActionListener(e -> showPreparing(name));
+        button.addActionListener(e -> {
+            if ("랭킹".equals(name)) {
+                openScoreboard();
+            } else {
+                showPreparing(name);
+            }
+        });
         return button;
     }
 
@@ -220,6 +227,15 @@ public class MainPanel extends JPanel {
 
     private void openStore() {
         showPreparing("상점");
+    }
+
+    private void openScoreboard() {
+    Window window = SwingUtilities.getWindowAncestor(this);
+    if (window instanceof JFrame frame) {
+        frame.setContentPane(new ScoreboardPanel());
+        frame.revalidate();
+        frame.repaint();
+        }
     }
 
     private void showPreparing(String screen) {
