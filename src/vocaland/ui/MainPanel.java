@@ -19,13 +19,13 @@ public class MainPanel extends JPanel {
             "background.png", BACKGROUND_TILE_SIZE, BACKGROUND_TILE_SIZE, false
     );
 
-    public MainPanel() {
+    public MainPanel(Runnable openStudy) {
         setLayout(new BorderLayout(0, 12));
         setBackground(BACKGROUND);
         setBorder(new EmptyBorder(18, 32, 22, 32));
 
         add(createHeader(), BorderLayout.NORTH);
-        add(createContent(), BorderLayout.CENTER);
+        add(createContent(openStudy), BorderLayout.CENTER);
     }
 
     @Override
@@ -71,7 +71,7 @@ public class MainPanel extends JPanel {
         return header;
     }
 
-    private JPanel createContent() {
+    private JPanel createContent(Runnable openStudy) {
         JPanel content = transparentPanel(new GridBagLayout());
         JPanel column = transparentPanel(new BorderLayout(0, 64));
 
@@ -88,11 +88,15 @@ public class MainPanel extends JPanel {
 
         JPanel menu = transparentPanel(new GridLayout(2, 2, 14, 14));
 
-        // 로고별 최대 가로, 최대 세로, 좌우 이동, 상하 이동
-        menu.add(createMenuButton("학습", "study.png", 188, 72, 0, 4));
-        menu.add(createMenuButton("랭킹", "rank.png", 198, 76, 4, 0));
-        menu.add(createMenuButton("산성비", "rain.png", 208, 80, 0, -5));
-        menu.add(createMenuButton("농구", "basketball.png", 193, 70, 0, 3));
+        // 로고별 최대 가로, 최대 세로, 좌우 이동, 상하 이동, 클릭 동작
+        menu.add(createMenuButton("학습", "study.png", 188, 72, 0, 4,
+                openStudy));
+        menu.add(createMenuButton("랭킹", "rank.png", 198, 76, 4, 0,
+                () -> showPreparing("랭킹")));
+        menu.add(createMenuButton("산성비", "rain.png", 208, 80, 0, -5,
+                () -> showPreparing("산성비")));
+        menu.add(createMenuButton("농구", "basketball.png", 193, 70, 0, 3,
+                () -> showPreparing("농구")));
 
         JPanel menuAndStore = transparentPanel(new BorderLayout(0, 16));
         menuAndStore.add(menu, BorderLayout.CENTER);
@@ -119,7 +123,8 @@ public class MainPanel extends JPanel {
 
     private JButton createMenuButton(
             String name, String imageName,
-            int maxWidth, int maxHeight, int offsetX, int offsetY
+            int maxWidth, int maxHeight, int offsetX, int offsetY,
+            Runnable onClick
     ) {
         JButton button = createButton(name, 16);
         button.setPreferredSize(MENU_SIZE);
@@ -129,7 +134,7 @@ public class MainPanel extends JPanel {
         ));
         button.setFont(font(26));
         applyButtonLogo(button, imageName, maxWidth, maxHeight);
-        button.addActionListener(e -> showPreparing(name));
+        button.addActionListener(e -> onClick.run());
         return button;
     }
 
