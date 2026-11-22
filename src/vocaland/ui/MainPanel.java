@@ -8,6 +8,7 @@ import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import vocaland.ui.scoreboard.ScoreboardPanel;
+import vocaland.ui.store.StorePanel;
 
 public class MainPanel extends JPanel {
     private static final Color BACKGROUND = new Color(250, 251, 248);
@@ -226,7 +227,12 @@ public class MainPanel extends JPanel {
     }
 
     private void openStore() {
-        showPreparing("상점");
+    Window window = SwingUtilities.getWindowAncestor(this);
+    if (window instanceof JFrame frame) {
+        frame.setContentPane(new StorePanel());
+        frame.revalidate();
+        frame.repaint();
+        }
     }
 
     private void openScoreboard() {
@@ -247,3 +253,4 @@ public class MainPanel extends JPanel {
         );
     }
 }
+
