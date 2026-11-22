@@ -7,16 +7,18 @@ import java.util.List;
 import java.util.Random;
 
 /*
- * RainGame - 산성비 게임 규칙 (점수, 목숨, 레벨, 속도, 정답 판정)
+ * RainGame - 산성비 게임 규칙 (점수, 목숨, 레벨, 코인, 하트 단어, 정답 판정)
  *
  * reset()            : 처음 상태로 초기화
  * start()            : 고른 모드로 게임 시작
  * update()           : 한 프레임 진행 (단어 생성 → 이동 → 바닥 충돌), 바닥에 닿은 단어 반환
- * submit()           : 입력값 판정, 정답이면 얻은 점수 반환 (오답이면 0)
+ * submit()           : 입력값 판정, 맞힌 단어 반환 (오답이면 null)
+ * getLastPoints()    : 마지막으로 맞힌 단어로 얻은 점수
  * getPointsPerWord() : 현재 레벨의 정답 점수 (100, 120, 140 ...)
+ * getCoins()         : 점수로 받는 코인 (점수 ÷ 100)
  * currentSpeed()     : 현재 레벨의 낙하 속도
  * nextSpawnDelay()   : 다음 단어가 나올 때까지 시간 (평균 ± 랜덤)
- * spawnWord()        : 새 단어 하나 생성
+ * spawnWord()        : 새 단어 하나 생성 (시작 5초 뒤부터 약 10% 확률로 하트 단어)
  * pickWord()         : 화면에 없는 단어 우선으로 고르기
  * pickX()            : 다른 단어와 겹치지 않는 가로 위치 고르기
  */
@@ -25,9 +27,11 @@ public class RainGame {
     public enum State { READY, PLAYING, GAME_OVER }
 
     public static final int START_LIVES = 3;
+    public static final int MAX_LIVES = 3;
+    public static final int CORRECT_PER_LEVEL = 10;
     private static final int BASE_POINTS = 100;
     private static final int POINTS_PER_LEVEL = 20;
-    private static final int SCORE_PER_LEVEL = 1000;
+    private static final int SCORE_PER_COIN = 100;
 
     private static final double BASE_SPEED = 0.8;
     private static final double SPEED_PER_LEVEL = 0.15;
@@ -38,6 +42,9 @@ public class RainGame {
     private static final int SPAWN_MS_PER_LEVEL = 200;
     private static final int MIN_SPAWN_MS = 1200;
     private static final int SPAWN_RANDOM_MS = 700;
+
+    private static final int HEART_START_MS = 5000;
+    private static final double HEART_CHANCE = 0.1;
 
     private static final int SIDE_MARGIN = 12;
 
@@ -51,6 +58,9 @@ public class RainGame {
     private int score;
     private int lives;
     private int level;
+    private int correctCount;
+    private int lastPoints;
+    private int playMs;
     private int msUntilSpawn;
 
     public RainGame(List<String[]> wordPool) {
@@ -67,6 +77,9 @@ public class RainGame {
         score = 0;
         lives = START_LIVES;
         level = 1;
+        correctCount = 0;
+        lastPoints = 0;
+        playMs = 0;
         msUntilSpawn = 0;
         state = State.READY;
     }
@@ -83,6 +96,7 @@ public class RainGame {
             return landed;
         }
 
+        playMs += elapsedMs;
         msUntilSpawn -= elapsedMs;
         if (msUntilSpawn <= 0) {
             spawnWord(areaWidth);
@@ -110,9 +124,10 @@ public class RainGame {
         return landed;
     }
 
-    public int submit(String input) {
+    public FallingWord submit(String input) {
+        lastPoints = 0;
         if (state != State.PLAYING || input == null || input.isBlank()) {
-            return 0;
+            return null;
         }
 
         FallingWord target = null;
@@ -123,18 +138,30 @@ public class RainGame {
             }
         }
         if (target == null) {
-            return 0;
+            return null;
         }
 
         fallingWords.remove(target);
-        int points = getPointsPerWord();
-        score += points;
-        level = score / SCORE_PER_LEVEL + 1;
-        return points;
+        lastPoints = getPointsPerWord();
+        score += lastPoints;
+        correctCount++;
+        level = correctCount / CORRECT_PER_LEVEL + 1;
+        if (target.isHeart()) {
+            lives = Math.min(MAX_LIVES, lives + 1);
+        }
+        return target;
+    }
+
+    public int getLastPoints() {
+        return lastPoints;
     }
 
     public int getPointsPerWord() {
         return BASE_POINTS + POINTS_PER_LEVEL * (level - 1);
+    }
+
+    public int getCoins() {
+        return score / SCORE_PER_COIN;
     }
 
     private double currentSpeed() {
@@ -151,12 +178,11 @@ public class RainGame {
         String[] pair = pickWord();
         String english = pair[0];
         String meaning = pair[1];
-        String shown = (mode == InputMode.SPELLING) ? meaning : english;
-
-        double x = pickX(areaWidth, estimateWidth(shown) / 2);
+        double x = pickX(areaWidth, FallingWord.BOX_WIDTH / 2);
         double rate = MIN_SPEED_RATE + random.nextDouble() * (MAX_SPEED_RATE - MIN_SPEED_RATE);
+        boolean heart = playMs >= HEART_START_MS && random.nextDouble() < HEART_CHANCE;
 
-        fallingWords.add(new FallingWord(english, meaning, x, rate));
+        fallingWords.add(new FallingWord(english, meaning, x, rate, heart));
     }
 
     private String[] pickWord() {
@@ -198,20 +224,11 @@ public class RainGame {
             if (word.getY() > FallingWord.BOX_HEIGHT * 3) {
                 continue;
             }
-            int otherHalf = estimateWidth(word.getDisplayText(mode)) / 2;
-            if (Math.abs(x - word.getX()) < halfWidth + otherHalf + 10) {
+            if (Math.abs(x - word.getX()) < halfWidth * 2 + 10) {
                 return true;
             }
         }
         return false;
-    }
-
-    private static int estimateWidth(String text) {
-        int width = 24;
-        for (char c : text.toCharArray()) {
-            width += (c >= 0xAC00 && c <= 0xD7A3) ? 17 : 10;
-        }
-        return width;
     }
 
     public State getState() {
