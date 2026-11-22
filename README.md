@@ -58,6 +58,7 @@ vocaland/
 | `scores.txt` | 사용자 ID, 게임 점수, 플레이 날짜 | |
 | `items.txt` | 아이템 ID, 이름, 적용 대상, 가격, 이미지 경로 | |
 | `inventory.txt` | 사용자 ID, 보유 아이템 ID | |
+| `review_words.txt` | 사용자가 ‘다시 볼 단어’로 표시한 목록 (사용자 ID, 단어 ID) | `U001\|W001` |
 
 > 모든 파일은 **UTF-8** 인코딩, **상대경로(`data/...`)** 로 접근합니다.
 
