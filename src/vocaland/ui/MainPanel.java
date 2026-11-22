@@ -7,6 +7,7 @@ import java.io.IOException;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import vocaland.ui.scoreboard.ScoreboardPanel;
 import vocaland.ui.store.StorePanel;
 
 public class MainPanel extends JPanel {
@@ -130,7 +131,13 @@ public class MainPanel extends JPanel {
         ));
         button.setFont(font(26));
         applyButtonLogo(button, imageName, maxWidth, maxHeight);
-        button.addActionListener(e -> showPreparing(name));
+        button.addActionListener(e -> {
+            if ("랭킹".equals(name)) {
+                openScoreboard();
+            } else {
+                showPreparing(name);
+            }
+        });
         return button;
     }
 
@@ -223,6 +230,15 @@ public class MainPanel extends JPanel {
     Window window = SwingUtilities.getWindowAncestor(this);
     if (window instanceof JFrame frame) {
         frame.setContentPane(new StorePanel());
+        frame.revalidate();
+        frame.repaint();
+        }
+    }
+
+    private void openScoreboard() {
+    Window window = SwingUtilities.getWindowAncestor(this);
+    if (window instanceof JFrame frame) {
+        frame.setContentPane(new ScoreboardPanel());
         frame.revalidate();
         frame.repaint();
         }
