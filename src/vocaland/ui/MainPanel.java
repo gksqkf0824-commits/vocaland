@@ -7,9 +7,9 @@ import java.io.IOException;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import vocaland.ui.store.StorePanel;
 
 public class MainPanel extends JPanel {
+    private final Runnable openStore;
     private static final Color BACKGROUND = new Color(250, 251, 248);
     private static final Dimension MENU_SIZE = new Dimension(250, 120);
     private static final Dimension STORE_SIZE = new Dimension(156, 56);
@@ -20,13 +20,14 @@ public class MainPanel extends JPanel {
             "background.png", BACKGROUND_TILE_SIZE, BACKGROUND_TILE_SIZE, false
     );
 
-    public MainPanel(Runnable openStudy) {
+    public MainPanel(Runnable openStudy, Runnable openRain, Runnable openBasketball, Runnable openStore) {
+        this.openStore = openStore;
         setLayout(new BorderLayout(0, 12));
         setBackground(BACKGROUND);
         setBorder(new EmptyBorder(18, 32, 22, 32));
 
         add(createHeader(), BorderLayout.NORTH);
-        add(createContent(openStudy), BorderLayout.CENTER);
+        add(createContent(openStudy, openRain, openBasketball), BorderLayout.CENTER);
     }
 
     @Override
@@ -72,7 +73,7 @@ public class MainPanel extends JPanel {
         return header;
     }
 
-    private JPanel createContent(Runnable openStudy) {
+    private JPanel createContent(Runnable openStudy, Runnable openRain, Runnable openBasketball) {
         JPanel content = transparentPanel(new GridBagLayout());
         JPanel column = transparentPanel(new BorderLayout(0, 64));
 
@@ -95,9 +96,9 @@ public class MainPanel extends JPanel {
         menu.add(createMenuButton("랭킹", "rank.png", 198, 76, 4, 0,
                 () -> showPreparing("랭킹")));
         menu.add(createMenuButton("산성비", "rain.png", 208, 80, 0, -5,
-                () -> showPreparing("산성비")));
+                openRain));
         menu.add(createMenuButton("농구", "basketball.png", 193, 70, 0, 3,
-                () -> showPreparing("농구")));
+                openBasketball));
 
         JPanel menuAndStore = transparentPanel(new BorderLayout(0, 16));
         menuAndStore.add(menu, BorderLayout.CENTER);
@@ -225,12 +226,7 @@ public class MainPanel extends JPanel {
     }
 
     private void openStore() {
-    Window window = SwingUtilities.getWindowAncestor(this);
-    if (window instanceof JFrame frame) {
-        frame.setContentPane(new StorePanel());
-        frame.revalidate();
-        frame.repaint();
-        }
+        openStore.run();
     }
 
     private void showPreparing(String screen) {

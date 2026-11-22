@@ -1,4 +1,7 @@
-package vocaland.ui;
+package vocaland.ui.study;
+
+import vocaland.ui.RoundedButton;
+import vocaland.ui.Theme;
 
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
