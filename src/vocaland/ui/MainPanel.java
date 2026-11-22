@@ -7,8 +7,6 @@ import java.io.IOException;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import vocaland.ui.scoreboard.ScoreboardPanel;
-import vocaland.ui.store.StorePanel;
 
 public class MainPanel extends JPanel {
     private final Runnable openStore;
@@ -22,14 +20,14 @@ public class MainPanel extends JPanel {
             "background.png", BACKGROUND_TILE_SIZE, BACKGROUND_TILE_SIZE, false
     );
 
-    public MainPanel(Runnable openStudy, Runnable openRain, Runnable openBasketball, Runnable openStore) {
+    public MainPanel(Runnable openStudy, Runnable openRain, Runnable openBasketball, Runnable openStore, Runnable openScoreboard) {
         this.openStore = openStore;
         setLayout(new BorderLayout(0, 12));
         setBackground(BACKGROUND);
         setBorder(new EmptyBorder(18, 32, 22, 32));
 
         add(createHeader(), BorderLayout.NORTH);
-        add(createContent(openStudy, openRain, openBasketball), BorderLayout.CENTER);
+        add(createContent(openStudy, openRain, openBasketball, openScoreboard), BorderLayout.CENTER);
     }
 
     @Override
@@ -75,7 +73,7 @@ public class MainPanel extends JPanel {
         return header;
     }
 
-    private JPanel createContent(Runnable openStudy, Runnable openRain, Runnable openBasketball) {
+    private JPanel createContent(Runnable openStudy, Runnable openRain, Runnable openBasketball, Runnable openScoreboard) {
         JPanel content = transparentPanel(new GridBagLayout());
         JPanel column = transparentPanel(new BorderLayout(0, 64));
 
@@ -96,7 +94,7 @@ public class MainPanel extends JPanel {
         menu.add(createMenuButton("학습", "study.png", 188, 72, 0, 4,
                 openStudy));
         menu.add(createMenuButton("랭킹", "rank.png", 198, 76, 4, 0,
-                () -> showPreparing("랭킹")));
+                openScoreboard));
         menu.add(createMenuButton("산성비", "rain.png", 208, 80, 0, -5,
                 openRain));
         menu.add(createMenuButton("농구", "basketball.png", 193, 70, 0, 3,
@@ -138,13 +136,6 @@ public class MainPanel extends JPanel {
         ));
         button.setFont(font(26));
         applyButtonLogo(button, imageName, maxWidth, maxHeight);
-        button.addActionListener(e -> {
-            if ("랭킹".equals(name)) {
-                openScoreboard();
-            } else {
-                showPreparing(name);
-            }
-        });
         button.addActionListener(e -> onClick.run());
         return button;
     }
@@ -236,15 +227,6 @@ public class MainPanel extends JPanel {
 
     private void openStore() {
         openStore.run();
-    }
-
-    private void openScoreboard() {
-    Window window = SwingUtilities.getWindowAncestor(this);
-    if (window instanceof JFrame frame) {
-        frame.setContentPane(new ScoreboardPanel());
-        frame.revalidate();
-        frame.repaint();
-        }
     }
 
     private void showPreparing(String screen) {

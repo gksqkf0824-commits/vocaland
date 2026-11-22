@@ -24,6 +24,7 @@ import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
+import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
@@ -312,8 +313,20 @@ public class AcidRainPanel extends JPanel {
         scoreLabel.setForeground(Theme.TEXT);
         right.add(boxed(scoreLabel));
 
-        JButton back = new RoundedButton("← 메인으로", 14);
+        JButton back = new RoundedButton("← 메인으로", 18);
         back.setFont(font(15));
+        back.setPreferredSize(new Dimension(132, 42));
+        back.setBorder(new EmptyBorder(8, 12, 12, 18));
+        ImageIcon backIcon = new ImageIcon("images/text/go_main.png");
+        if (backIcon.getIconWidth() > 0 && backIcon.getIconHeight() > 0) {
+            double scale = Math.min(102.0 / backIcon.getIconWidth(), 24.0 / backIcon.getIconHeight());
+            back.setIcon(new ImageIcon(backIcon.getImage().getScaledInstance(
+                    Math.max(1, (int) Math.round(backIcon.getIconWidth() * scale)),
+                    Math.max(1, (int) Math.round(backIcon.getIconHeight() * scale)), Image.SCALE_SMOOTH)));
+            back.setText("");
+            back.setBorder(new EmptyBorder(13, 12, 12, 18));
+        }
+        back.getAccessibleContext().setAccessibleName("메인으로");
         back.addActionListener(e -> goToMain());
         right.add(back);
 

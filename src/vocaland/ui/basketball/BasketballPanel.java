@@ -9,6 +9,7 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
+import vocaland.ui.RoundedButton;
 
 /*
  * BasketballPanel - 농구 게임 화면 (화면 조립, 타이머, 키보드 입력 처리)
@@ -49,7 +50,7 @@ public class BasketballPanel extends JPanel {
     private JLabel titleLabel;
     private JLabel lifeTextLabel;
     private JLabel scoreLabel;
-    private PillButton backBtn;
+    private JButton backBtn;
     private JPanel livesPanel;
     private JPanel wrongReviewBox;
     private JLabel wrongHeaderLabel;
@@ -453,7 +454,19 @@ public class BasketballPanel extends JPanel {
         scoreLabel.setForeground(Color.BLACK);
         scoreBox.add(scoreLabel);
 
-        backBtn = new PillButton("← 메인으로", GREEN_BTN, GREEN_BTN_SHADOW);
+        backBtn = new RoundedButton("← 메인으로", 18);
+        backBtn.setPreferredSize(new Dimension(132, 42));
+        backBtn.setBorder(new EmptyBorder(8, 12, 12, 18));
+        ImageIcon backIcon = new ImageIcon("images/text/go_main.png");
+        if (backIcon.getIconWidth() > 0 && backIcon.getIconHeight() > 0) {
+            double scale = Math.min(102.0 / backIcon.getIconWidth(), 24.0 / backIcon.getIconHeight());
+            backBtn.setIcon(new ImageIcon(backIcon.getImage().getScaledInstance(
+                    Math.max(1, (int) Math.round(backIcon.getIconWidth() * scale)),
+                    Math.max(1, (int) Math.round(backIcon.getIconHeight() * scale)), Image.SCALE_SMOOTH)));
+            backBtn.setText("");
+            backBtn.setBorder(new EmptyBorder(13, 12, 12, 18));
+        }
+        backBtn.getAccessibleContext().setAccessibleName("메인으로");
         backBtn.addActionListener(e -> {
             stop();
             if (onBackToMain != null) {

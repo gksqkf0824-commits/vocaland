@@ -7,6 +7,7 @@ import javax.swing.JPanel;
 import vocaland.ui.basketball.BasketballPanel;
 import vocaland.ui.rain.AcidRainPanel;
 import vocaland.ui.store.StorePanel;
+import vocaland.ui.scoreboard.ScoreboardPanel;
 import vocaland.ui.study.PairPanel;
 import vocaland.ui.study.StudyPanel;
 
@@ -22,6 +23,7 @@ public class MainFrame extends JFrame {
         BasketballPanel basketballPanel = new BasketballPanel();
         basketballPanel.stop();
         StorePanel storePanel = new StorePanel(() -> layout.show(screens, "main"));
+        ScoreboardPanel scoreboardPanel = new ScoreboardPanel(() -> layout.show(screens, "main"));
         MainPanel mainPanel = new MainPanel(
                 () -> layout.show(screens, "study"),
                 () -> {
@@ -32,7 +34,8 @@ public class MainFrame extends JFrame {
                     layout.show(screens, "basketball");
                     basketballPanel.start();
                 },
-                () -> layout.show(screens, "store")
+                () -> layout.show(screens, "store"),
+                () -> layout.show(screens, "scoreboard")
         );
         rainPanel.setOnBackToMain(() -> {
             rainPanel.stop();
@@ -54,6 +57,7 @@ public class MainFrame extends JFrame {
         screens.add(rainPanel, "rain");
         screens.add(basketballPanel, "basketball");
         screens.add(storePanel, "store");
+        screens.add(scoreboardPanel, "scoreboard");
 
         setContentPane(screens);
         layout.show(screens, "main");

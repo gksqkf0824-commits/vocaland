@@ -10,11 +10,11 @@ import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
-import vocaland.ui.MainPanel;
 import vocaland.ui.RoundedButton;
 import vocaland.ui.Theme;
 
 public class ScoreboardPanel extends JPanel {
+    private final Runnable onBackToMain;
     private static final Color BACKGROUND = new Color(250, 251, 248);
     private static final Color PANEL_BG = new Color(255, 255, 255, 235);
     private static final Color ROW_EVEN = new Color(248, 251, 243);
@@ -51,7 +51,8 @@ public class ScoreboardPanel extends JPanel {
     private JLabel myNameLabel;
     private JLabel myScoreLabel;
 
-    public ScoreboardPanel() {
+    public ScoreboardPanel(Runnable onBackToMain) {
+        this.onBackToMain = onBackToMain;
         setLayout(new BorderLayout(0, 16));
         setBackground(BACKGROUND);
         setBorder(new EmptyBorder(18, 32, 24, 32));
@@ -101,15 +102,19 @@ public class ScoreboardPanel extends JPanel {
     private JPanel createHeader() {
         JPanel header = transparentPanel(new BorderLayout());
 
-        // 좌측 뒤로가기 버튼
-        JButton backBtn = new RoundedButton("← 뒤로", 14);
+        // 상점과 같은 메인 복귀 버튼
+        JButton backBtn = new RoundedButton("← 메인으로", 18);
         backBtn.setFont(font(16));
-        backBtn.setPreferredSize(new Dimension(110, 44));
+        backBtn.setPreferredSize(new Dimension(132, 42));
+        backBtn.setBorder(new EmptyBorder(8, 12, 12, 18));
+        ImageIcon backIcon = loadImage("text/go_main.png", 102, 24, false);
+        if (backIcon != null) {
+            backBtn.setIcon(backIcon);
+            backBtn.setText("");
+            backBtn.setBorder(new EmptyBorder(13, 12, 12, 18));
+        }
+        backBtn.getAccessibleContext().setAccessibleName("메인으로");
         backBtn.addActionListener(e -> goBackToMain());
-
-        JPanel leftWrap = transparentPanel(new FlowLayout(FlowLayout.LEFT, 0, 4));
-        leftWrap.add(backBtn);
-        header.add(leftWrap, BorderLayout.WEST);
 
         // 중앙 랭킹 로고
         JLabel titleLabel = new JLabel("랭킹", SwingConstants.CENTER);
@@ -122,10 +127,9 @@ public class ScoreboardPanel extends JPanel {
         }
         header.add(titleLabel, BorderLayout.CENTER);
 
-        // 중앙 정렬 균형을 맞추기 위한 우측 빈 공간
-        JPanel rightSpacer = transparentPanel(new FlowLayout(FlowLayout.RIGHT, 0, 4));
-        rightSpacer.setPreferredSize(new Dimension(110, 44));
-        header.add(rightSpacer, BorderLayout.EAST);
+        JPanel rightWrap = transparentPanel(new FlowLayout(FlowLayout.RIGHT, 10, 4));
+        rightWrap.add(backBtn);
+        header.add(rightWrap, BorderLayout.EAST);
 
         return header;
     }
@@ -345,12 +349,7 @@ public class ScoreboardPanel extends JPanel {
     }
 
     private void goBackToMain() {
-        Window window = SwingUtilities.getWindowAncestor(this);
-        if (window instanceof JFrame frame) {
-            frame.setContentPane(new MainPanel());
-            frame.revalidate();
-            frame.repaint();
-        }
+        onBackToMain.run();
     }
 
     private ImageIcon loadImage(String imageName, int maxWidth, int maxHeight, boolean trim) {
