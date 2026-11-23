@@ -435,6 +435,15 @@ public class BasketballPanel extends JPanel {
         lifeTextLabel = new JLabel("남은 기회");
         lifeTextLabel.setFont(new Font("맑은 고딕", Font.BOLD, 15));
         lifeTextLabel.setForeground(Color.BLACK);
+        ImageIcon healthIcon = new ImageIcon("images/health.png");
+        if (healthIcon.getIconWidth() > 0 && healthIcon.getIconHeight() > 0) {
+            double scale = Math.min(84.0 / healthIcon.getIconWidth(), 24.0 / healthIcon.getIconHeight());
+            lifeTextLabel.setIcon(new ImageIcon(healthIcon.getImage().getScaledInstance(
+                    Math.max(1, (int) Math.round(healthIcon.getIconWidth() * scale)),
+                    Math.max(1, (int) Math.round(healthIcon.getIconHeight() * scale)), Image.SCALE_SMOOTH)));
+            lifeTextLabel.setText("");
+        }
+        lifeTextLabel.getAccessibleContext().setAccessibleName("남은 기회");
 
         livesPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         livesPanel.setBackground(BG_WHITE);

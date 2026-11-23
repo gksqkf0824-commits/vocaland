@@ -200,7 +200,9 @@ public class AcidRainPanel extends JPanel {
 
     private void refreshStatus() {
         hearts.setLives(game.getLives());
-        scoreLabel.setText("점수 " + String.format("%,d", game.getScore()));
+        scoreLabel.setText((scoreLabel.getIcon() == null ? "점수 " : "")
+                + String.format("%,d", game.getScore()));
+        scoreLabel.getAccessibleContext().setAccessibleName("점수 " + game.getScore());
         reviewTitle.setText("오답 복습 (" + reviewModel.size() + ")");
     }
 
@@ -305,12 +307,24 @@ public class AcidRainPanel extends JPanel {
         JPanel right = transparent(new FlowLayout(FlowLayout.RIGHT, 10, 0));
 
         JPanel livesBox = transparent(new FlowLayout(FlowLayout.CENTER, 8, 0));
-        livesBox.add(label("남은 기회", 15));
+        JLabel lifeTextLabel = label("남은 기회", 15);
+        ImageIcon healthIcon = new ImageIcon("images/health.png");
+        if (healthIcon.getIconWidth() > 0 && healthIcon.getIconHeight() > 0) {
+            double scale = Math.min(84.0 / healthIcon.getIconWidth(), 24.0 / healthIcon.getIconHeight());
+            lifeTextLabel.setIcon(new ImageIcon(healthIcon.getImage().getScaledInstance(
+                    Math.max(1, (int) Math.round(healthIcon.getIconWidth() * scale)),
+                    Math.max(1, (int) Math.round(healthIcon.getIconHeight() * scale)), Image.SCALE_SMOOTH)));
+            lifeTextLabel.setText("");
+        }
+        lifeTextLabel.getAccessibleContext().setAccessibleName("남은 기회");
+        livesBox.add(lifeTextLabel);
         livesBox.add(hearts);
         right.add(boxed(livesBox));
 
         scoreLabel.setFont(font(17));
         scoreLabel.setForeground(Theme.TEXT);
+        scoreLabel.setIcon(loadLabelIcon("score.png", 52, 28));
+        scoreLabel.setIconTextGap(8);
         right.add(boxed(scoreLabel));
 
         JButton back = new RoundedButton("← 메인으로", 18);
@@ -385,6 +399,12 @@ public class AcidRainPanel extends JPanel {
 
         JPanel right = transparent(new FlowLayout(FlowLayout.LEFT, 12, 0));
         submitButton.setFont(font(16));
+        ImageIcon enterIcon = loadLabelIcon("enter.png", 54, 30);
+        if (enterIcon != null) {
+            submitButton.setIcon(enterIcon);
+            submitButton.setText("");
+        }
+        submitButton.getAccessibleContext().setAccessibleName("입력");
         submitButton.addActionListener(e -> {
             submitAnswer();
             inputField.requestFocusInWindow();
@@ -398,6 +418,18 @@ public class AcidRainPanel extends JPanel {
 
         bar.add(row, BorderLayout.CENTER);
         return bar;
+    }
+
+    private static ImageIcon loadLabelIcon(String name, int maxWidth, int maxHeight) {
+        ImageIcon icon = new ImageIcon(new File("images", name).getPath());
+        if (icon.getIconWidth() <= 0 || icon.getIconHeight() <= 0) {
+            return null;
+        }
+        double scale = Math.min((double) maxWidth / icon.getIconWidth(),
+                (double) maxHeight / icon.getIconHeight());
+        return new ImageIcon(icon.getImage().getScaledInstance(
+                Math.max(1, (int) Math.round(icon.getIconWidth() * scale)),
+                Math.max(1, (int) Math.round(icon.getIconHeight() * scale)), Image.SCALE_SMOOTH));
     }
 
     private static Font font(int size) {
