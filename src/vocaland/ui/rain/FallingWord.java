@@ -52,10 +52,6 @@ public class FallingWord {
         return english;
     }
 
-    public String getMeaning() {
-        return meaning;
-    }
-
     public double getX() {
         return x;
     }
