@@ -1,5 +1,7 @@
 package vocaland.ui.rain;
 
+import vocaland.ui.util.ImagePaths;
+
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
@@ -10,9 +12,8 @@ import java.awt.Graphics2D;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.RenderingHints;
-import javax.swing.BorderFactory;
-import javax.swing.JPanel;
-import vocaland.ui.Theme;
+import javax.swing.ImageIcon;
+import vocaland.ui.theme.Theme;
 
 /*
  * RainGameCanvas - 단어가 떨어지는 영역 (그리기만 담당)
@@ -20,12 +21,12 @@ import vocaland.ui.Theme;
  * getAreaWidth()   : 게임 영역 가로 길이 (테두리 제외)
  * getGroundY()     : 바닥의 y좌표
  * paintComponent() : 배경 → 단어 → 바닥 → 레벨 순서로 그리기
- * drawSky()        : 배경 그라데이션
+ * drawSky()        : 게임 배경 이미지 (없으면 그라데이션)
  * drawWord()       : 빗줄기 + 단어 박스 (바닥에 가까우면 빨간색)
  * drawGround()     : 산성비가 고인 바닥
  * drawLevel()      : 바닥 위에 현재 레벨과 정답 점수 표시
  */
-public class RainGameCanvas extends JPanel {
+public class RainGameCanvas extends vocaland.ui.components.RoundedPanel {
     public static final int GROUND_HEIGHT = 28;
 
     private static final Color SKY_TOP = Color.WHITE;
@@ -38,11 +39,12 @@ public class RainGameCanvas extends JPanel {
     private static final Font LEVEL_FONT = new Font(Font.DIALOG, Font.BOLD, 15);
 
     private final RainGame game;
+    private final ImageIcon rainBackground = new ImageIcon(ImagePaths.ROOT + ImagePaths.GAME_RAIN_BACKGROUND);
 
     public RainGameCanvas(RainGame game) {
         this.game = game;
         setLayout(new GridBagLayout());
-        setBorder(BorderFactory.createLineBorder(Theme.TEXT, 2));
+        setBorder(new vocaland.ui.components.RoundedBorder(new java.awt.Color(181, 222, 103), 2));
     }
 
     public int getAreaWidth() {
@@ -81,6 +83,19 @@ public class RainGameCanvas extends JPanel {
     }
 
     private void drawSky(Graphics2D g, int width, int groundY) {
+        int height = groundY + GROUND_HEIGHT;
+        if (width <= 0 || height <= 0) return;
+        if (rainBackground.getIconWidth() > 0 && rainBackground.getIconHeight() > 0) {
+            double scale = Math.max((double) width / rainBackground.getIconWidth(),
+                    (double) height / rainBackground.getIconHeight());
+            int imageWidth = (int) Math.ceil(rainBackground.getIconWidth() * scale);
+            int imageHeight = (int) Math.ceil(rainBackground.getIconHeight() * scale);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                    RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.drawImage(rainBackground.getImage(), (width - imageWidth) / 2,
+                    (height - imageHeight) / 2, imageWidth, imageHeight, this);
+            return;
+        }
         g.setPaint(new GradientPaint(0, 0, SKY_TOP, 0, groundY, SKY_BOTTOM));
         g.fillRect(0, 0, width, groundY);
     }

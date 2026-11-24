@@ -1,5 +1,7 @@
 package vocaland.ui.rain;
 
+import vocaland.ui.util.ImagePaths;
+
 import java.awt.AlphaComposite;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -19,7 +21,6 @@ import java.util.List;
 import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
-import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComponent;
@@ -33,8 +34,12 @@ import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
-import vocaland.ui.RoundedButton;
-import vocaland.ui.Theme;
+import vocaland.ui.components.RoundedButton;
+import vocaland.ui.util.LogoIcon;
+import vocaland.ui.components.RoundedPanel;
+import vocaland.ui.components.RoundedBorder;
+import vocaland.ui.components.BackgroundPanel;
+import vocaland.ui.theme.Theme;
 
 /*
  * AcidRainPanel - 산성비 게임 화면 (화면 조립, 타이머, 입력 처리)
@@ -51,10 +56,10 @@ import vocaland.ui.Theme;
  * createHeader()    : 상단 (제목, 남은 기회, 점수, 메인으로)
  * createCenter()    : 가운데 (게임 영역, 오답 복습 목록)
  * createInputBar()  : 하단 (안내 문구, 입력창, 입력 버튼, 정답 표시)
- * sampleWords()     : 임시 단어 목록 (백엔드 단어 불러오기가 생기면 교체)
+ * sampleWords()     : 화면 단독 실행용 예제 단어 (실제 앱은 words.txt 사용)
  * main()            : 혼자 테스트용 실행
  */
-public class AcidRainPanel extends JPanel {
+public class AcidRainPanel extends BackgroundPanel {
 
     public interface GameOverListener {
         void onGameOver(int score, int level, List<FallingWord> missedWords);
@@ -81,11 +86,13 @@ public class AcidRainPanel extends JPanel {
     private final JButton submitButton = new RoundedButton("입력", 14);
     private final JLabel feedbackLabel = new JLabel(" ");
 
-    private final JPanel overlay = new RoundedCard();
+    private final JPanel overlay = new vocaland.ui.components.GamePopupCard();
     private InputMode selectedMode = InputMode.SPELLING;
 
     private Runnable onBackToMain;
     private GameOverListener onGameOver;
+    private java.util.function.BiConsumer<String, Boolean> onAnswer;
+    public void setOnAnswer(java.util.function.BiConsumer<String, Boolean> listener) { onAnswer = listener; }
 
     public AcidRainPanel() {
         this(sampleWords());
@@ -100,7 +107,7 @@ public class AcidRainPanel extends JPanel {
 
         setLayout(new BorderLayout(0, 14));
         setBackground(BACKGROUND);
-        setBorder(new EmptyBorder(18, 28, 20, 28));
+        setBorder(new EmptyBorder(12, 28, 20, 28));
 
         add(createHeader(), BorderLayout.NORTH);
         add(createCenter(), BorderLayout.CENTER);
@@ -145,6 +152,7 @@ public class AcidRainPanel extends JPanel {
         List<FallingWord> landed = game.update(TICK_MS, canvas.getAreaWidth(), canvas.getGroundY());
 
         for (FallingWord word : landed) {
+            if (onAnswer != null) onAnswer.accept(word.getEnglish(), false);
             reviewModel.addElement(word.getReviewText());
             showFeedback("놓쳤어요! 기회 -1", WRONG);
         }
@@ -166,7 +174,10 @@ public class AcidRainPanel extends JPanel {
         }
 
         int levelBefore = game.getLevel();
+        FallingWord matching = game.getFallingWords().stream()
+                .filter(w -> w.isAnswer(input, selectedMode)).findFirst().orElse(null);
         int points = game.submit(input);
+        if (points > 0 && matching != null && onAnswer != null) onAnswer.accept(matching.getEnglish(), true);
 
         if (points > 0) {
             String text = "정답 +" + points + "점";
@@ -227,12 +238,9 @@ public class AcidRainPanel extends JPanel {
         refreshStatus();
 
         overlay.removeAll();
-        overlay.add(centered(label("산성비 게임", 28)));
-        overlay.add(Box.createVerticalStrut(6));
-        overlay.add(centered(label("단어가 바닥에 닿기 전에 정답을 입력하세요!", 15)));
-        overlay.add(Box.createVerticalStrut(18));
-        overlay.add(centered(label("모드 선택", 16)));
-        overlay.add(Box.createVerticalStrut(8));
+
+        overlay.add(centered(label("단어가 바닥에 닿기 전에 정답을 입력하세요", 20)));
+        overlay.add(Box.createVerticalStrut(20));
 
         JPanel modes = transparent(new FlowLayout(FlowLayout.CENTER, 10, 0));
         for (InputMode mode : InputMode.values()) {
@@ -251,6 +259,12 @@ public class AcidRainPanel extends JPanel {
 
         JButton startButton = new RoundedButton("시작하기", 16);
         startButton.setFont(font(20));
+        ImageIcon startIcon = loadLabelIcon(ImagePaths.TEXT_START, 100, 30);
+        if (startIcon != null) {
+            startButton.setIcon(startIcon);
+            startButton.setText("");
+        }
+        startButton.getAccessibleContext().setAccessibleName("시작하기");
         startButton.addActionListener(e -> startGame());
         overlay.add(centered(startButton));
 
@@ -261,13 +275,19 @@ public class AcidRainPanel extends JPanel {
 
     private void showGameOver() {
         overlay.removeAll();
-        overlay.add(centered(label("게임 오버", 30)));
+        JLabel gameOverTitle = label("게임 오버", 30);
+        ImageIcon gameOverIcon = loadLabelIcon(ImagePaths.GAME_GAME_OVER, 240, 70);
+        if (gameOverIcon != null) {
+            gameOverTitle.setIcon(gameOverIcon);
+            gameOverTitle.setText("");
+        }
+        gameOverTitle.getAccessibleContext().setAccessibleName("게임 오버");
+        overlay.add(centered(gameOverTitle));
         overlay.add(Box.createVerticalStrut(10));
         overlay.add(centered(label("점수 " + String.format("%,d", game.getScore())
                 + "   ·   Lv." + game.getLevel(), 20)));
         overlay.add(Box.createVerticalStrut(6));
-        overlay.add(centered(label("놓친 단어 " + game.getMissedWords().size()
-                + "개는 오른쪽 오답 복습에서 확인하세요.", 14)));
+        overlay.add(centered(label("오답은 오른쪽에서 확인하세요.", 14)));
         overlay.add(Box.createVerticalStrut(18));
 
         JPanel buttons = transparent(new FlowLayout(FlowLayout.CENTER, 10, 0));
@@ -302,13 +322,21 @@ public class AcidRainPanel extends JPanel {
         JPanel header = transparent(new BorderLayout());
 
         JLabel title = label("산성비 게임", 30);
+        ImageIcon titleIcon = LogoIcon.load(ImagePaths.LOGO_RAIN, 190, 61);
+        if (titleIcon != null) {
+            title.setIcon(titleIcon);
+            title.setText("");
+        }
+        title.getAccessibleContext().setAccessibleName("산성비 게임");
+        title.setVerticalAlignment(JLabel.TOP);
         header.add(title, BorderLayout.WEST);
 
         JPanel right = transparent(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        right.setBorder(new EmptyBorder(6, 0, 0, 0));
 
         JPanel livesBox = transparent(new FlowLayout(FlowLayout.CENTER, 8, 0));
         JLabel lifeTextLabel = label("남은 기회", 15);
-        ImageIcon healthIcon = new ImageIcon("images/health.png");
+        ImageIcon healthIcon = new ImageIcon(ImagePaths.ROOT + ImagePaths.TEXT_HEALTH);
         if (healthIcon.getIconWidth() > 0 && healthIcon.getIconHeight() > 0) {
             double scale = Math.min(84.0 / healthIcon.getIconWidth(), 24.0 / healthIcon.getIconHeight());
             lifeTextLabel.setIcon(new ImageIcon(healthIcon.getImage().getScaledInstance(
@@ -319,19 +347,31 @@ public class AcidRainPanel extends JPanel {
         lifeTextLabel.getAccessibleContext().setAccessibleName("남은 기회");
         livesBox.add(lifeTextLabel);
         livesBox.add(hearts);
-        right.add(boxed(livesBox));
+        JComponent livesStatus = boxed(livesBox);
+        livesStatus.setBorder(new EmptyBorder(7, 12, 7, 12));
+        right.add(livesStatus);
 
         scoreLabel.setFont(font(17));
         scoreLabel.setForeground(Theme.TEXT);
-        scoreLabel.setIcon(loadLabelIcon("score.png", 52, 28));
+        ImageIcon scoreIcon = loadLabelIcon(ImagePaths.TEXT_SCORE, 46, 25);
+        if (scoreIcon != null) {
+            BufferedImage shiftedScore = new BufferedImage(
+                    scoreIcon.getIconWidth(), scoreIcon.getIconHeight() + 4, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = shiftedScore.createGraphics();
+            scoreIcon.paintIcon(null, g, 0, 3);
+            g.dispose();
+            scoreLabel.setIcon(new ImageIcon(shiftedScore));
+        }
         scoreLabel.setIconTextGap(8);
-        right.add(boxed(scoreLabel));
+        JComponent scoreBox = boxed(scoreLabel);
+        scoreBox.setBorder(new EmptyBorder(5, 22, 9, 22));
+        right.add(scoreBox);
 
         JButton back = new RoundedButton("← 메인으로", 18);
         back.setFont(font(15));
         back.setPreferredSize(new Dimension(132, 42));
         back.setBorder(new EmptyBorder(8, 12, 12, 18));
-        ImageIcon backIcon = new ImageIcon("images/text/go_main.png");
+        ImageIcon backIcon = new ImageIcon(ImagePaths.ROOT + ImagePaths.TEXT_GO_MAIN);
         if (backIcon.getIconWidth() > 0 && backIcon.getIconHeight() > 0) {
             double scale = Math.min(102.0 / backIcon.getIconWidth(), 24.0 / backIcon.getIconHeight());
             back.setIcon(new ImageIcon(backIcon.getImage().getScaledInstance(
@@ -352,9 +392,9 @@ public class AcidRainPanel extends JPanel {
         JPanel center = transparent(new BorderLayout(14, 0));
         center.add(canvas, BorderLayout.CENTER);
 
-        JPanel review = new JPanel(new BorderLayout());
+        JPanel review = new RoundedPanel(new BorderLayout());
         review.setBackground(Color.WHITE);
-        review.setBorder(BorderFactory.createLineBorder(Theme.TEXT, 2));
+        review.setBorder(new RoundedBorder(new Color(181, 222, 103), 2));
         review.setPreferredSize(new Dimension(210, 0));
 
         reviewTitle.setFont(font(17));
@@ -365,7 +405,7 @@ public class AcidRainPanel extends JPanel {
         review.add(reviewTitle, BorderLayout.NORTH);
 
         JList<String> list = new JList<>(reviewModel);
-        list.setFont(new Font(Font.DIALOG, Font.PLAIN, 15));
+        list.setFont(Theme.REVIEW_FONT);
         list.setForeground(Theme.TEXT);
         list.setFixedCellHeight(28);
         list.setBorder(new EmptyBorder(6, 12, 6, 12));
@@ -392,14 +432,14 @@ public class AcidRainPanel extends JPanel {
 
         inputField.setFont(new Font(Font.DIALOG, Font.PLAIN, 19));
         inputField.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Theme.TEXT, 2, true),
+                new RoundedBorder(new Color(181, 222, 103), 2),
                 new EmptyBorder(6, 12, 6, 12)));
         inputField.addActionListener(e -> submitAnswer());
         row.add(inputField, BorderLayout.CENTER);
 
         JPanel right = transparent(new FlowLayout(FlowLayout.LEFT, 12, 0));
         submitButton.setFont(font(16));
-        ImageIcon enterIcon = loadLabelIcon("enter.png", 54, 30);
+        ImageIcon enterIcon = loadLabelIcon(ImagePaths.TEXT_ENTER, 54, 30);
         if (enterIcon != null) {
             submitButton.setIcon(enterIcon);
             submitButton.setText("");
@@ -421,15 +461,7 @@ public class AcidRainPanel extends JPanel {
     }
 
     private static ImageIcon loadLabelIcon(String name, int maxWidth, int maxHeight) {
-        ImageIcon icon = new ImageIcon(new File("images", name).getPath());
-        if (icon.getIconWidth() <= 0 || icon.getIconHeight() <= 0) {
-            return null;
-        }
-        double scale = Math.min((double) maxWidth / icon.getIconWidth(),
-                (double) maxHeight / icon.getIconHeight());
-        return new ImageIcon(icon.getImage().getScaledInstance(
-                Math.max(1, (int) Math.round(icon.getIconWidth() * scale)),
-                Math.max(1, (int) Math.round(icon.getIconHeight() * scale)), Image.SCALE_SMOOTH));
+        return vocaland.ui.util.ImageAssets.load(ImagePaths.ROOT + name, maxWidth, maxHeight, -1, false);
     }
 
     private static Font font(int size) {
@@ -455,33 +487,36 @@ public class AcidRainPanel extends JPanel {
     }
 
     private static JComponent boxed(JComponent content) {
-        JPanel box = new JPanel(new BorderLayout());
-        box.setBackground(Color.WHITE);
-        box.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Theme.TEXT, 2, true),
-                new EmptyBorder(5, 12, 5, 12)));
+        JPanel box = new JPanel(new BorderLayout()) {
+            @Override
+            public Dimension getPreferredSize() {
+                Dimension size = super.getPreferredSize();
+                return new Dimension(size.width, 42);
+            }
+
+            @Override
+            protected void paintComponent(Graphics graphics) {
+                super.paintComponent(graphics);
+                Graphics2D g = (Graphics2D) graphics.create();
+                try {
+                    g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                            RenderingHints.VALUE_ANTIALIAS_ON);
+                    int width = getWidth() - 2;
+                    int height = getHeight() - 6;
+                    g.setColor(new Color(32, 50, 15, 65));
+                    g.fillRoundRect(1, 5, width, height, 36, 36);
+                    g.setColor(Theme.PRIMARY);
+                    g.fillRoundRect(1, 1, width, height, 36, 36);
+                } finally {
+                    g.dispose();
+                }
+            }
+        };
+        box.setOpaque(false);
+        box.setBorder(new EmptyBorder(5, 12, 9, 12));
+        content.setOpaque(false);
         box.add(content);
         return box;
-    }
-
-    private static class RoundedCard extends JPanel {
-        RoundedCard() {
-            setOpaque(false);
-            setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
-            setBorder(new EmptyBorder(26, 40, 26, 40));
-        }
-
-        @Override
-        protected void paintComponent(Graphics graphics) {
-            Graphics2D g = (Graphics2D) graphics.create();
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g.setColor(new Color(255, 255, 255, 240));
-            g.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 28, 28);
-            g.setColor(Theme.TEXT);
-            g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 28, 28);
-            g.dispose();
-            super.paintComponent(graphics);
-        }
     }
 
     private static class HeartsView extends JComponent {
@@ -521,7 +556,7 @@ public class AcidRainPanel extends JPanel {
         }
 
         private static Image loadHeart() {
-            File file = new File("images", "heart.png");
+            File file = new File("images", ImagePaths.GAME_HEART);
             if (!file.isFile()) {
                 return null;
             }

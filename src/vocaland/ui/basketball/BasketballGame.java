@@ -197,6 +197,8 @@ public class BasketballGame {
         isShooting = false;
     }
 
+    public String getCurrentEnglish() { return currentEnglish; }
+
     public String getQuestionText() {
         return (mode == BasketballMode.MEANING) ? currentEnglish : currentMeaning;
     }

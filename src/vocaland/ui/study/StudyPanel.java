@@ -1,7 +1,14 @@
 package vocaland.ui.study;
 
-import vocaland.ui.RoundedButton;
-import vocaland.ui.Theme;
+import vocaland.ui.util.ImagePaths;
+
+import vocaland.ui.components.RoundedButton;
+import vocaland.ui.components.RoundedPanel;
+import vocaland.ui.components.RoundedBorder;
+import vocaland.ui.theme.Theme;
+import vocaland.repository.WordRepository;
+import vocaland.repository.ReviewRepository;
+import vocaland.model.Word;
 
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
@@ -15,14 +22,10 @@ import java.awt.GridLayout;
 import java.awt.Image;
 import java.awt.Insets;
 import java.awt.RenderingHints;
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -46,33 +49,24 @@ import javax.swing.border.MatteBorder;
 public class StudyPanel extends JPanel {
     private static final Path WORDS_FILE = Path.of("data", "words.txt");
     private static final Path REVIEW_FILE = Path.of("data", "review_words.txt");
-    private static final String USER_PREFIX = "U001|";
+    private final String userPrefix;
+    private final ReviewRepository reviews = new ReviewRepository(REVIEW_FILE);
 
     private static final Color BACKGROUND = new Color(0xFAFBF8);
     private static final Color DIVIDER = new Color(0xDCE5CF);
-
-    private static final List<Word> SAMPLE_WORDS = List.of(
-            new Word("DEMO001", "apple", "사과"),
-            new Word("DEMO002", "pineapple", "파인애플"),
-            new Word("DEMO003", "bread", "빵"),
-            new Word("DEMO004", "milk", "우유"),
-            new Word("DEMO005", "rice", "밥"),
-            new Word("DEMO006", "egg", "달걀")
-    );
 
     private final CardLayout screenLayout = new CardLayout();
     private final JPanel results = new JPanel(new BorderLayout(0, 18));
     private final Map<String, Word> viewedWords = new LinkedHashMap<>();
     private final Set<String> reviewEntries = new LinkedHashSet<>();
-    private final List<Word> words;
+    private final List<Word> allWords;
+    private List<Word> words = List.of();
     private final Runnable goMain;
 
-    private final ImageIcon backgroundTile =
-            loadIcon("images/background.png", 620, 620, false);
     private final ImageIcon nextIcon =
-            loadIcon("images/text/next.png", 105, 30, false);
+            loadIcon(ImagePaths.ROOT + ImagePaths.TEXT_NEXT, 105, 30, false);
     private final ImageIcon finishIcon =
-            loadIcon("images/text/finish.png", 105, 30, false);
+            loadIcon(ImagePaths.ROOT + ImagePaths.TEXT_VIEW_RESULTS, 95, 27, false);
 
     private final JLabel english = new JLabel("", SwingConstants.CENTER);
     private final JLabel meaning = new JLabel("", SwingConstants.CENTER);
@@ -81,7 +75,7 @@ public class StudyPanel extends JPanel {
 
     private final RoundedButton previous = imageButton(
             "이전 단어",
-            loadIcon("images/text/previous.png", 110, 35, false),
+            loadIcon(ImagePaths.ROOT + ImagePaths.TEXT_PREVIOUS, 110, 35, false),
             140, 50
     );
     private final RoundedButton next = imageButton("다음 단어", nextIcon, 140, 50);
@@ -89,6 +83,8 @@ public class StudyPanel extends JPanel {
     private int wordIndex;
     private boolean englishHidden;
     private boolean meaningHidden;
+    private RoundedButton hideEnglish;
+    private RoundedButton hideMeaning;
     private boolean reviewAvailable = true;
     private String wordLoadError;
 
@@ -117,9 +113,10 @@ public class StudyPanel extends JPanel {
         }
     };
 
-    public StudyPanel(Runnable goMain, Runnable openPair) {
+    public StudyPanel(String userId, Runnable goMain, Runnable openPair) {
+        this.userPrefix = userId + "|";
         this.goMain = goMain;
-        words = loadWords();
+        allWords = loadWords();
         loadReviewEntries();
 
         setLayout(screenLayout);
@@ -130,31 +127,107 @@ public class StudyPanel extends JPanel {
         study.add(createStudyHeader(), BorderLayout.NORTH);
         study.add(createStudyCard(), BorderLayout.CENTER);
         study.add(createNavigation(openPair), BorderLayout.SOUTH);
+        bindNavigationKey(study, "RIGHT", "nextWord", next);
+        bindNavigationKey(study, "LEFT", "previousWord", previous);
 
         results.setOpaque(false);
         add(study, "study");
         add(results, "results");
+        add(createDifficultySelection(), "difficulty");
 
         refreshCard();
-        screenLayout.show(this, "study");
+        screenLayout.show(this, "difficulty");
+    }
+
+    public void showDifficultySelection() {
+        refreshReviews();
+        screenLayout.show(this, "difficulty");
+    }
+
+    public List<String[]> getStudyWordPairs() {
+        return words.stream().map(word -> new String[] {word.english(), word.meaning()}).toList();
+    }
+
+    private JPanel createDifficultySelection() {
+        JPanel selection = transparentPanel(new java.awt.GridBagLayout());
+        JPanel card = new RoundedPanel(new BorderLayout(0, 24));
+        card.setBackground(Color.WHITE);
+        card.setBorder(javax.swing.BorderFactory.createCompoundBorder(
+                new RoundedBorder(Theme.PRIMARY, 2), new EmptyBorder(28, 36, 28, 36)));
+        JLabel title = new JLabel("학습 난이도 선택", JLabel.CENTER);
+        styleLabel(title, 26);
+        ImageIcon difficultyTitleIcon = loadIcon(ImagePaths.ROOT + ImagePaths.TEXT_STUDY_DIFFICULTY, 240, 40, true);
+        if (difficultyTitleIcon != null) {
+            title.setIcon(difficultyTitleIcon);
+            title.setText("");
+        }
+        title.getAccessibleContext().setAccessibleName("학습 난이도 선택");
+        card.add(title, BorderLayout.NORTH);
+        JPanel choices = transparentPanel(new GridLayout(1, 3, 14, 0));
+        for (String difficulty : List.of("초급", "중급", "고급")) {
+            RoundedButton button = new RoundedButton(difficulty);
+            button.setFont(new Font(Font.DIALOG, Font.BOLD, 20));
+            String imageName = switch (difficulty) {
+                case "초급" -> "beginner";
+                case "중급" -> "intermediate";
+                default -> "advanced";
+            };
+            ImageIcon difficultyIcon = loadIcon(ImagePaths.ROOT + ImagePaths.TEXT_DIRECTORY + imageName + ".png", 80, 26, true);
+            if (difficultyIcon != null) {
+                double scale = "고급".equals(difficulty) ? 0.60 * 0.95 : 0.60;
+                difficultyIcon = new ImageIcon(difficultyIcon.getImage().getScaledInstance(
+                        Math.max(1, (int) Math.round(difficultyIcon.getIconWidth() * scale)),
+                        Math.max(1, (int) Math.round(difficultyIcon.getIconHeight() * scale)),
+                        Image.SCALE_SMOOTH));
+            }
+            setButtonImage(button, difficulty, difficultyIcon);
+            button.addActionListener(event -> {
+                java.util.ArrayList<Word> candidates = new java.util.ArrayList<>(
+                        allWords.stream().filter(word -> difficulty.equals(word.difficulty())).toList());
+                java.util.Collections.shuffle(candidates);
+                words = List.copyOf(candidates.subList(0, Math.min(20, candidates.size())));
+                restartStudy();
+                screenLayout.show(this, "study");
+            });
+            choices.add(button);
+        }
+        card.add(choices, BorderLayout.CENTER);
+        card.add(createMainButton(false), BorderLayout.SOUTH);
+        selection.add(card);
+        return selection;
+    }
+
+    private void bindNavigationKey(JPanel study, String key, String actionName,
+            RoundedButton button) {
+        study.getInputMap(javax.swing.JComponent.WHEN_IN_FOCUSED_WINDOW)
+                .put(javax.swing.KeyStroke.getKeyStroke(key), actionName);
+        javax.swing.AbstractAction action = new javax.swing.AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent event) {
+                if (study.isShowing() && button.isEnabled()) {
+                    button.doClick(0);
+                }
+            }
+        };
+        study.getActionMap().put(actionName, action);
+        // A focused checkbox consumes arrow keys before window-level bindings.
+        reviewCheck.getInputMap(javax.swing.JComponent.WHEN_FOCUSED)
+                .put(javax.swing.KeyStroke.getKeyStroke(key), actionName);
+        reviewCheck.getActionMap().put(actionName, action);
     }
 
     private JPanel createStudyHeader() {
         JLabel title = new JLabel("학습");
         styleLabel(title, 28);
 
-        ImageIcon titleIcon = loadIcon("images/study.png", 170, 50, true);
+        ImageIcon titleIcon = loadIcon(ImagePaths.ROOT + ImagePaths.LOGO_STUDY, 170, 50, true);
         if (titleIcon != null) {
             title.setIcon(titleIcon);
             title.setText("");
             title.getAccessibleContext().setAccessibleName("학습");
         }
 
-        RoundedButton review = new RoundedButton("다시 볼 단어");
-        review.addActionListener(event -> showResults(true));
-
         JPanel actions = row(FlowLayout.RIGHT);
-        actions.add(review);
         actions.add(createMainButton(false));
 
         JPanel header = transparentPanel(new BorderLayout());
@@ -210,23 +283,21 @@ public class StudyPanel extends JPanel {
         meaningSection.setBorder(new EmptyBorder(10, 0, 0, 0));
         card.add(meaningSection);
 
-        RoundedButton hideEnglish = imageButton(
+        hideEnglish = imageButton(
                 "단어 가리기",
-                loadIcon("images/text/hide_english.png", 96, 24, false),
+                loadIcon(ImagePaths.ROOT + ImagePaths.TEXT_HIDE_ENGLISH, 96, 24, false),
                 128, 42
         );
-        hideEnglish.setEnabled(!words.isEmpty());
         hideEnglish.addActionListener(event -> {
             englishHidden = !englishHidden;
             refreshCard();
         });
 
-        RoundedButton hideMeaning = imageButton(
+        hideMeaning = imageButton(
                 "뜻 가리기",
-                loadIcon("images/text/hide_korean.png", 96, 24, false),
+                loadIcon(ImagePaths.ROOT + ImagePaths.TEXT_HIDE_KOREAN, 96, 24, false),
                 128, 42
         );
-        hideMeaning.setEnabled(!words.isEmpty());
         hideMeaning.addActionListener(event -> {
             meaningHidden = !meaningHidden;
             refreshCard();
@@ -258,7 +329,7 @@ public class StudyPanel extends JPanel {
 
         next.addActionListener(event -> {
             if (wordIndex == words.size() - 1) {
-                showResults(false);
+                showResults();
             } else {
                 wordIndex++;
                 refreshCard();
@@ -271,7 +342,7 @@ public class StudyPanel extends JPanel {
 
         RoundedButton pair = imageButton(
                 "짝 맞추기",
-                loadIcon("images/pair.png", 130, 27, true),
+                loadIcon(ImagePaths.ROOT + ImagePaths.LOGO_PAIR, 130, 27, true),
                 180, 50
         );
         pair.setBorder(new EmptyBorder(6, 16, 10, 16));
@@ -286,7 +357,7 @@ public class StudyPanel extends JPanel {
     private RoundedButton createMainButton(boolean resetStudy) {
         RoundedButton button = imageButton(
                 "← 메인으로",
-                loadIcon("images/text/go_main.png", 102, 24, false),
+                loadIcon(ImagePaths.ROOT + ImagePaths.TEXT_GO_MAIN, 102, 24, false),
                 132, 42
         );
         if (button.getIcon() != null) {
@@ -321,11 +392,15 @@ public class StudyPanel extends JPanel {
 
         progressBar.repaint();
         reviewCheck.setEnabled(word != null && reviewAvailable);
+        hideEnglish.setEnabled(word != null);
+        hideMeaning.setEnabled(word != null);
         reviewCheck.setSelected(word != null && isMarked(word));
         previous.setEnabled(wordIndex > 0);
         next.setEnabled(word != null);
 
         boolean last = word != null && wordIndex == words.size() - 1;
+        next.setBorder(last ? new EmptyBorder(9, 15, 13, 17)
+                : new EmptyBorder(10, 17, 12, 15));
         setButtonImage(next, last ? "끝" : "다음 단어", last ? finishIcon : nextIcon);
     }
 
@@ -337,37 +412,48 @@ public class StudyPanel extends JPanel {
         refreshCard();
     }
 
-    private void showResults(boolean allReviewWords) {
+    private void showResults() {
         List<Word> viewed = List.copyOf(viewedWords.values());
-        List<Word> marked = (allReviewWords ? words : viewed).stream()
+        List<Word> marked = viewed.stream()
                 .filter(this::isMarked)
                 .toList();
 
         results.removeAll();
 
-        JLabel title = new JLabel(allReviewWords ? "다시 볼 단어" : "학습 결과");
+        JLabel title = new JLabel("학습 결과");
         styleLabel(title, 28);
+        ImageIcon resultIcon = loadIcon(ImagePaths.ROOT + ImagePaths.LOGO_RESULT, 210, 60, true);
+        if (resultIcon != null) {
+            title.setIcon(resultIcon);
+            title.setText("");
+        }
+        title.getAccessibleContext().setAccessibleName("학습 결과");
 
-        RoundedButton back = new RoundedButton(allReviewWords ? "학습으로" : "다시 학습");
+        RoundedButton back = new RoundedButton("다시 학습");
+        back.setFont(new Font(Font.DIALOG, Font.BOLD, 16));
+        back.setPreferredSize(new Dimension(116, 42));
+        back.setBorder(new EmptyBorder(12, 15, 13, 15));
+        ImageIcon lookAgainIcon = loadIcon(ImagePaths.ROOT + ImagePaths.TEXT_STUDY_RESTART, 76, 17, true);
+        if (lookAgainIcon != null) {
+            back.setIcon(lookAgainIcon);
+            back.setText("");
+        }
+        back.getAccessibleContext().setAccessibleName("다시 학습");
         back.addActionListener(event -> {
-            if (!allReviewWords) {
-                restartStudy();
-            }
+            restartStudy();
             screenLayout.show(this, "study");
         });
 
         JPanel actions = row(FlowLayout.RIGHT);
         actions.add(back);
-        actions.add(createMainButton(!allReviewWords));
+        actions.add(createMainButton(true));
 
         JPanel header = transparentPanel(new BorderLayout());
         header.add(title, BorderLayout.WEST);
         header.add(actions, BorderLayout.EAST);
 
-        JPanel lists = transparentPanel(new GridLayout(1, allReviewWords ? 1 : 2, 16, 0));
-        if (!allReviewWords) {
-            lists.add(createWordList("오늘 학습한 단어", viewed, false));
-        }
+        JPanel lists = transparentPanel(new GridLayout(1, 2, 16, 0));
+        lists.add(createWordList("오늘 학습한 단어", viewed, false));
         lists.add(createWordList("다시 볼 단어", marked, true));
 
         results.add(header, BorderLayout.NORTH);
@@ -380,7 +466,24 @@ public class StudyPanel extends JPanel {
     private JPanel createWordList(String title, List<Word> entries, boolean reviewOnly) {
         JPanel panel = transparentPanel(new BorderLayout(0, 10));
         JLabel heading = new JLabel(title + " · " + entries.size() + "개");
+        heading.setHorizontalAlignment(JLabel.CENTER);
+        heading.setBorder(new EmptyBorder(8, 0, 8, 0));
         styleLabel(heading, 20);
+        ImageIcon headingIcon = loadIcon(reviewOnly
+                ? ImagePaths.ROOT + ImagePaths.TEXT_REVIEW_WORDS : ImagePaths.ROOT + ImagePaths.TEXT_STUDIED_WORDS,
+                210, 32, true);
+        if (headingIcon != null) {
+            if (reviewOnly) {
+                headingIcon = new ImageIcon(headingIcon.getImage().getScaledInstance(
+                        Math.max(1, (int) Math.round(headingIcon.getIconWidth() * 0.98)),
+                        Math.max(1, (int) Math.round(headingIcon.getIconHeight() * 0.98)),
+                        Image.SCALE_SMOOTH));
+            }
+            heading.setIcon(headingIcon);
+            heading.setText("");
+        }
+        heading.setOpaque(false);
+        heading.getAccessibleContext().setAccessibleName(title + " · " + entries.size() + "개");
         panel.add(heading, BorderLayout.NORTH);
 
         StringBuilder content = new StringBuilder();
@@ -407,15 +510,23 @@ public class StudyPanel extends JPanel {
         list.setFont(new Font(Font.DIALOG, Font.PLAIN, 17));
         list.setLineWrap(true);
         list.setWrapStyleWord(true);
-        list.setMargin(new Insets(12, 14, 12, 14));
+        list.setMargin(new Insets(18, 20, 18, 20));
         list.setCaretPosition(0);
 
         JScrollPane scroll = new JScrollPane(list);
+        scroll.setBorder(null);
+        scroll.getViewport().setBackground(Color.WHITE);
         scroll.getVerticalScrollBar().setUnitIncrement(20);
-        panel.add(scroll, BorderLayout.CENTER);
+        JPanel listCard = new RoundedPanel(new BorderLayout());
+        listCard.setBackground(Color.WHITE);
+        listCard.setBorder(new RoundedBorder(Theme.PRIMARY, 2));
+        listCard.add(scroll, BorderLayout.CENTER);
+        panel.add(listCard, BorderLayout.CENTER);
 
         if (reviewOnly) {
-            RoundedButton export = new RoundedButton("복습 단어 TXT로 저장");
+            RoundedButton export = new RoundedButton("복습 단어 저장");
+            export.setFont(new Font(Font.DIALOG, Font.BOLD, 16));
+            export.setPreferredSize(new Dimension(0, 48));
             export.setEnabled(!entries.isEmpty());
             export.addActionListener(event -> exportReview(entries));
             panel.add(export, BorderLayout.SOUTH);
@@ -426,37 +537,24 @@ public class StudyPanel extends JPanel {
 
     private List<Word> loadWords() {
         try {
-            Map<String, Word> unique = new LinkedHashMap<>();
-
-            for (String line : Files.readAllLines(WORDS_FILE, StandardCharsets.UTF_8)) {
-                String[] fields = line.split("\\|", -1);
-                if (fields.length < 3) {
-                    continue;
-                }
-
-                String id = fields[0].strip();
-                String englishText = fields[1].strip();
-                String meaningText = fields[2].strip();
-
-                if (!id.isEmpty() && !englishText.isEmpty() && !meaningText.isEmpty()) {
-                    unique.putIfAbsent(id, new Word(id, englishText, meaningText));
-                }
-            }
-
-            return List.copyOf(unique.values());
-        } catch (NoSuchFileException missing) {
-            return SAMPLE_WORDS;
-        } catch (IOException error) {
+            return WordRepository.read(WORDS_FILE);
+        } catch (IOException | IllegalStateException error) {
             wordLoadError = error.getMessage();
             return List.of();
         }
     }
 
+    public void refreshReviews() {
+        reviewEntries.clear();
+        loadReviewEntries();
+        refreshCard();
+    }
+
     private void loadReviewEntries() {
         try {
-            reviewEntries.addAll(Files.readAllLines(REVIEW_FILE, StandardCharsets.UTF_8));
-        } catch (NoSuchFileException missing) {
-            // 첫 복습 표시를 저장할 때 파일을 만든다.
+            reviewEntries.addAll(reviews.read());
+            reviewAvailable = true;
+            reviewCheck.setToolTipText(null);
         } catch (IOException error) {
             reviewAvailable = false;
             reviewCheck.setToolTipText("복습 파일을 읽을 수 없어요. " + error.getMessage());
@@ -464,12 +562,12 @@ public class StudyPanel extends JPanel {
     }
 
     private boolean isMarked(Word word) {
-        return reviewEntries.contains(USER_PREFIX + word.id());
+        return reviewEntries.contains(userPrefix + word.id());
     }
 
     private void saveReviewSelection() {
         Word word = words.get(wordIndex);
-        String entry = USER_PREFIX + word.id();
+        String entry = userPrefix + word.id();
         Set<String> updated = new LinkedHashSet<>(reviewEntries);
 
         if (reviewCheck.isSelected()) {
@@ -478,27 +576,13 @@ public class StudyPanel extends JPanel {
             updated.remove(entry);
         }
 
-        Path temporary = null;
         try {
-            Files.createDirectories(REVIEW_FILE.getParent());
-            temporary = Files.createTempFile(REVIEW_FILE.getParent(), "review-", ".tmp");
-            Files.write(temporary, updated, StandardCharsets.UTF_8);
-            Files.move(temporary, REVIEW_FILE,
-                    StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-
+            reviews.save(updated);
             reviewEntries.clear();
             reviewEntries.addAll(updated);
         } catch (IOException error) {
             reviewCheck.setSelected(isMarked(word));
             showSaveError("복습 표시를 저장할 수 없어요.", error);
-        } finally {
-            if (temporary != null) {
-                try {
-                    Files.deleteIfExists(temporary);
-                } catch (IOException ignored) {
-                    // 저장 오류는 위에서 이미 안내했다.
-                }
-            }
         }
     }
 
@@ -530,10 +614,7 @@ public class StudyPanel extends JPanel {
                 return;
             }
 
-            List<String> lines = entries.stream()
-                    .map(word -> word.english() + "\t" + word.meaning())
-                    .toList();
-            Files.write(path, lines, StandardCharsets.UTF_8);
+            reviews.export(path, entries);
         } catch (IOException error) {
             showSaveError("TXT 파일을 저장할 수 없어요.", error);
         }
@@ -553,19 +634,7 @@ public class StudyPanel extends JPanel {
     @Override
     protected void paintComponent(Graphics graphics) {
         super.paintComponent(graphics);
-
-        if (backgroundTile == null) {
-            return;
-        }
-
-        int width = backgroundTile.getIconWidth();
-        int height = backgroundTile.getIconHeight();
-
-        for (int y = 0; y < getHeight(); y += height) {
-            for (int x = 0; x < getWidth(); x += width) {
-                backgroundTile.paintIcon(this, graphics, x, y);
-            }
-        }
+        vocaland.ui.components.BackgroundPanel.paintBackground(this, graphics);
     }
 
     private static JPanel wordSection(String name, JLabel value) {
@@ -608,60 +677,9 @@ public class StudyPanel extends JPanel {
         button.getAccessibleContext().setAccessibleName(text);
     }
 
-    private static ImageIcon loadIcon(String path, int maxWidth, int maxHeight,
-            boolean trim) {
-        ImageIcon source = new ImageIcon(path);
-        int width = source.getIconWidth();
-        int height = source.getIconHeight();
-
-        if (width <= 0 || height <= 0) {
-            return null;
-        }
-
-        Image image = source.getImage();
-        if (trim) {
-            BufferedImage buffered = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D g = buffered.createGraphics();
-            try {
-                g.drawImage(image, 0, 0, null);
-            } finally {
-                g.dispose();
-            }
-            image = trimTransparentMargins(buffered);
-            width = image.getWidth(null);
-            height = image.getHeight(null);
-        }
-
-        double scale = Math.min((double) maxWidth / width, (double) maxHeight / height);
-        return new ImageIcon(image.getScaledInstance(
-                Math.max(1, (int) Math.round(width * scale)),
-                Math.max(1, (int) Math.round(height * scale)),
-                Image.SCALE_SMOOTH
-        ));
+    private static ImageIcon loadIcon(String path, int width, int height, boolean trim) {
+        return vocaland.ui.util.ImageAssets.load(path, width, height, trim ? 16 : -1, false);
     }
 
-    private static BufferedImage trimTransparentMargins(BufferedImage image) {
-        int left = image.getWidth();
-        int top = image.getHeight();
-        int right = -1;
-        int bottom = -1;
 
-        for (int y = 0; y < image.getHeight(); y++) {
-            for (int x = 0; x < image.getWidth(); x++) {
-                if ((image.getRGB(x, y) >>> 24) > 16) {
-                    left = Math.min(left, x);
-                    top = Math.min(top, y);
-                    right = Math.max(right, x);
-                    bottom = Math.max(bottom, y);
-                }
-            }
-        }
-
-        if (right < left || bottom < top) {
-            return image;
-        }
-        return image.getSubimage(left, top, right - left + 1, bottom - top + 1);
-    }
-
-    private record Word(String id, String english, String meaning) {}
 }

@@ -29,8 +29,8 @@ public class RainGame {
     private static final int POINTS_PER_LEVEL = 20;
     private static final int SCORE_PER_LEVEL = 1000;
 
-    private static final double BASE_SPEED = 0.8;
-    private static final double SPEED_PER_LEVEL = 0.15;
+    private static final double BASE_SPEED = 0.88;
+    private static final double SPEED_PER_LEVEL = 0.165;
     private static final double MIN_SPEED_RATE = 0.8;
     private static final double MAX_SPEED_RATE = 1.3;
 

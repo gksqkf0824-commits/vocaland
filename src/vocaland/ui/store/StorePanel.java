@@ -1,32 +1,31 @@
 package vocaland.ui.store;
 
+import vocaland.ui.util.ImagePaths;
+
 import java.awt.*;
-import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.border.LineBorder;
-import vocaland.ui.RoundedButton;
-import vocaland.ui.Theme;
+import vocaland.ui.components.RoundedBorder;
+import vocaland.ui.components.RoundedPanel;
+import vocaland.ui.components.RoundedButton;
+import vocaland.ui.theme.Theme;
 
 public class StorePanel extends JPanel {
     private final Runnable onBackToMain;
+    private final vocaland.service.LocalData data;
     private static final Color BACKGROUND = new Color(250, 251, 248);
     private static final Color PANEL_BG = new Color(255, 255, 255, 235);
     private static final Color CARD_BG = new Color(248, 251, 243);
     private static final Color BORDER_COLOR = new Color(181, 222, 103);
     private static final Color SELECTED_BORDER = new Color(92, 145, 34);
-    private static final int BACKGROUND_TILE_SIZE = 620;
 
-    // 임시 아이템 데이터 구조 (추후 model.Item / repository 연동 시 교체)
+    // Display data for each store card.
     private static class StoreItem {
         String id;
         String name;
-        String category; // "캐릭터", "농구공", "배경"
+        String category; // "캐릭터", "농구", "배경"
         int price;
         String imageName;
         boolean owned;
@@ -43,9 +42,12 @@ public class StorePanel extends JPanel {
         }
     }
 
-    private final ImageIcon backgroundTile = loadImage("background.png", BACKGROUND_TILE_SIZE, BACKGROUND_TILE_SIZE, false);
     private final List<StoreItem> allItems = new ArrayList<>();
-    private int userCoins = 1500; // 테스트용 초기 코인 (추후 User 데이터 연동)
+    private final java.util.Map<String, JPanel> itemCards = new java.util.HashMap<>();
+    private final StoreImageCache imageCache = new StoreImageCache();
+    private boolean imagesReady;
+
+    private int userCoins;
     private String currentCategory = "캐릭터";
     private StoreItem selectedItem;
 
@@ -56,49 +58,45 @@ public class StorePanel extends JPanel {
     private JButton actionButton;
     private final List<JButton> categoryButtons = new ArrayList<>();
 
-    public StorePanel(Runnable onBackToMain) {
+    public StorePanel(vocaland.service.LocalData data, Runnable onBackToMain) {
+        this.data = data;
+        userCoins = data.current().coins();
         this.onBackToMain = onBackToMain;
         setLayout(new BorderLayout(0, 16));
         setBackground(BACKGROUND);
         setBorder(new EmptyBorder(18, 32, 24, 32));
 
-        initMockItems();
+        loadItems();
 
         add(createHeader(), BorderLayout.NORTH);
         add(createMainContent(), BorderLayout.CENTER);
 
         selectCategory("캐릭터");
+        prepareImages();
     }
 
-    private void initMockItems() {
-        // 캐릭터
-        allItems.add(new StoreItem("C01", "기본 아기거북", "캐릭터", 0, "turtle_green.png", true, true));
-        allItems.add(new StoreItem("C02", "황금 아기거북", "캐릭터", 500, "turtle_gold.png", false, false));
-        allItems.add(new StoreItem("C03", "기룡이", "캐릭터", 1000, "giryong_basic.png", false, false));
-        allItems.add(new StoreItem("C04", "산타 기룡이", "캐릭터", 1200, "giryong_santa.png", false, false));
+    private void loadItems() {
+        allItems.clear();
+        var inventory = data.inventoryStates();
+        for (vocaland.service.LocalData.Item item : data.items()) {
+            String category = switch (item.type()) { case "CHARACTER" -> "캐릭터"; case "BALL", "HOOP" -> "농구"; default -> "배경"; };
+            allItems.add(new StoreItem(item.id(), item.name(), category, item.price(),
+                    item.image().replaceFirst("^images/", ""), inventory.containsKey(item.id()),
+                    inventory.getOrDefault(item.id(), false)));
+        }
+    }
 
-        // 농구공
-        allItems.add(new StoreItem("B01", "기본 농구공", "농구공", 0, "basketball_basic.png", true, true));
-        allItems.add(new StoreItem("B02", "빈티지 농구공", "농구공", 400, "basketball_worn.png", false, false));
-        allItems.add(new StoreItem("B03", "황금 농구공", "농구공", 1000, "basketball_gold.png", false, false));
-
-        // 배경
-        allItems.add(new StoreItem("BG01", "기본 잔디 배경", "배경", 0, "background.png", true, true));
-        allItems.add(new StoreItem("BG02", "밤하늘 테마", "배경", 800, "bg_night.png", false, false));
+    public void refreshData() {
+        userCoins = data.current().coins();
+        coinButton.setText(String.format("%,d", userCoins));
+        loadItems();
+        selectCategory(currentCategory);
     }
 
     @Override
     protected void paintComponent(Graphics graphics) {
         super.paintComponent(graphics);
-        if (backgroundTile == null) return;
-
-        int tileW = backgroundTile.getIconWidth();
-        int tileH = backgroundTile.getIconHeight();
-        for (int y = 0; y < getHeight(); y += tileH) {
-            for (int x = 0; x < getWidth(); x += tileW) {
-                backgroundTile.paintIcon(this, graphics, x, y);
-            }
-        }
+        vocaland.ui.components.BackgroundPanel.paintBackground(this, graphics);
     }
 
     private JPanel createHeader() {
@@ -109,7 +107,7 @@ public class StorePanel extends JPanel {
         backBtn.setFont(font(16));
         backBtn.setPreferredSize(new Dimension(132, 42));
         backBtn.setBorder(new EmptyBorder(8, 12, 12, 18));
-        ImageIcon backIcon = loadImage("text/go_main.png", 102, 24, false);
+        ImageIcon backIcon = loadImage(ImagePaths.TEXT_GO_MAIN, 102, 24, false);
         if (backIcon != null) {
             backBtn.setIcon(backIcon);
             backBtn.setText("");
@@ -118,22 +116,24 @@ public class StorePanel extends JPanel {
         backBtn.getAccessibleContext().setAccessibleName("메인으로");
         backBtn.addActionListener(e -> goBackToMain());
 
-        // 중앙 상점 로고
-        JLabel titleLabel = new JLabel("상점", SwingConstants.CENTER);
+        // 좌측 상단 상점 로고
+        JLabel titleLabel = new JLabel("상점", SwingConstants.LEFT);
+        titleLabel.setVerticalAlignment(SwingConstants.TOP);
+        titleLabel.getAccessibleContext().setAccessibleName("상점");
         titleLabel.setFont(font(34));
         titleLabel.setForeground(Theme.TEXT);
-        ImageIcon storeLogo = loadImage("store.png", 220, 64, true);
+        ImageIcon storeLogo = loadImage(ImagePaths.LOGO_STORE, 187, 54, true);
         if (storeLogo != null) {
             titleLabel.setIcon(storeLogo);
             titleLabel.setText(null);
         }
-        header.add(titleLabel, BorderLayout.CENTER);
+        header.add(titleLabel, BorderLayout.WEST);
 
         // 우측 보유 코인 표시
         coinButton = new RoundedButton(String.format("%,d", userCoins), 14);
         coinButton.setFont(font(16));
         coinButton.setPreferredSize(new Dimension(130, 44));
-        ImageIcon coinIcon = loadImage("coin.png", 20, 20, true);
+        ImageIcon coinIcon = loadImage(ImagePaths.STORE_COIN, 20, 20, true);
         if (coinIcon != null) {
             coinButton.setIcon(coinIcon);
             coinButton.setIconTextGap(8);
@@ -155,15 +155,17 @@ public class StorePanel extends JPanel {
         gbc.weighty = 1.0;
 
         // [좌측 70%] 카테고리 탭 + 아이템 그리드
-        JPanel leftCard = new JPanel(new BorderLayout(0, 12));
+        JPanel leftCard = new RoundedPanel(new BorderLayout(0, 12));
+        leftCard.setPreferredSize(new Dimension(0, 0));
+        leftCard.setMinimumSize(new Dimension(0, 0));
         leftCard.setBackground(PANEL_BG);
         leftCard.setBorder(BorderFactory.createCompoundBorder(
-                new LineBorder(BORDER_COLOR, 3, true),
+                new RoundedBorder(BORDER_COLOR, 3),
                 new EmptyBorder(16, 18, 16, 18)
         ));
 
         JPanel tabBar = transparentPanel(new GridLayout(1, 3, 12, 0));
-        String[] categories = {"캐릭터", "농구공", "배경"};
+        String[] categories = {"캐릭터", "농구", "배경"};
         for (String cat : categories) {
             JButton tabBtn = new RoundedButton(cat, 12);
             tabBtn.setFont(font(17));
@@ -179,9 +181,13 @@ public class StorePanel extends JPanel {
         gridPanel.setBorder(new EmptyBorder(12, 12, 12, 12));
 
         JScrollPane scrollPane = new JScrollPane(gridPanel);
-        scrollPane.setBorder(new LineBorder(new Color(220, 235, 195), 2, true));
+        scrollPane.setBorder(null);
         scrollPane.getVerticalScrollBar().setUnitIncrement(16);
-        leftCard.add(scrollPane, BorderLayout.CENTER);
+        JPanel gridFrame = new RoundedPanel(new BorderLayout());
+        gridFrame.setBackground(Color.WHITE);
+        gridFrame.setBorder(new RoundedBorder(new Color(220, 235, 195), 2));
+        gridFrame.add(scrollPane, BorderLayout.CENTER);
+        leftCard.add(gridFrame, BorderLayout.CENTER);
 
         gbc.gridx = 0;
         gbc.weightx = 0.7;
@@ -189,10 +195,12 @@ public class StorePanel extends JPanel {
         splitContainer.add(leftCard, gbc);
 
         // [우측 30%] 선택 아이템 미리보기 + 장착/구매 패널
-        JPanel rightCard = new JPanel(new BorderLayout(0, 12));
+        JPanel rightCard = new RoundedPanel(new BorderLayout(0, 12));
+        rightCard.setPreferredSize(new Dimension(0, 0));
+        rightCard.setMinimumSize(new Dimension(0, 0));
         rightCard.setBackground(PANEL_BG);
         rightCard.setBorder(BorderFactory.createCompoundBorder(
-                new LineBorder(BORDER_COLOR, 3, true),
+                new RoundedBorder(BORDER_COLOR, 3),
                 new EmptyBorder(18, 18, 18, 18)
         ));
 
@@ -201,11 +209,32 @@ public class StorePanel extends JPanel {
         previewNameLabel.setForeground(Theme.TEXT);
         rightCard.add(previewNameLabel, BorderLayout.NORTH);
 
-        JPanel stagePanel = new JPanel(new BorderLayout());
+        JPanel stagePanel = new RoundedPanel(new BorderLayout());
         stagePanel.setBackground(CARD_BG);
-        stagePanel.setBorder(new LineBorder(new Color(220, 235, 195), 2, true));
+        stagePanel.setBorder(new RoundedBorder(new Color(220, 235, 195), 2));
 
-        previewImageLabel = new JLabel("", SwingConstants.CENTER);
+        previewImageLabel = new JLabel("", SwingConstants.CENTER) {
+            @Override
+            protected void paintComponent(Graphics graphics) {
+                if ("배경".equals(currentCategory) && getIcon() instanceof ImageIcon icon) {
+                    Graphics2D g = (Graphics2D) graphics.create();
+                    try {
+                        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                                RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                        double scale = Math.max((double) getWidth() / icon.getIconWidth(),
+                                (double) getHeight() / icon.getIconHeight());
+                        int width = (int) Math.ceil(icon.getIconWidth() * scale);
+                        int height = (int) Math.ceil(icon.getIconHeight() * scale);
+                        g.drawImage(icon.getImage(), (getWidth() - width) / 2,
+                                (getHeight() - height) / 2, width, height, this);
+                    } finally {
+                        g.dispose();
+                    }
+                    return;
+                }
+                super.paintComponent(graphics);
+            }
+        };
         previewImageLabel.setFont(font(16));
         previewImageLabel.setForeground(Theme.TEXT);
         stagePanel.add(previewImageLabel, BorderLayout.CENTER);
@@ -231,10 +260,10 @@ public class StorePanel extends JPanel {
         for (JButton btn : categoryButtons) {
             if (btn.getText().equals(category)) {
                 btn.setForeground(Theme.TEXT);
-                btn.setFont(font(18));
+                btn.setFont(font(17));
             } else {
                 btn.setForeground(new Color(90, 110, 70));
-                btn.setFont(font(16));
+                btn.setFont(font(17));
             }
         }
 
@@ -245,9 +274,9 @@ public class StorePanel extends JPanel {
             }
         }
 
-        if (!filtered.isEmpty()) {
-            selectedItem = filtered.get(0);
-        }
+        String selectedId = selectedItem == null ? null : selectedItem.id;
+        selectedItem = filtered.stream().filter(item -> item.id.equals(selectedId)).findFirst()
+                .orElse(filtered.isEmpty() ? null : filtered.get(0));
 
         refreshGrid(filtered);
         updatePreviewPanel();
@@ -255,20 +284,50 @@ public class StorePanel extends JPanel {
 
     private void refreshGrid(List<StoreItem> items) {
         gridPanel.removeAll();
+        itemCards.clear();
+        boolean character = currentCategory.equals("캐릭터");
+        gridPanel.setLayout(new GridLayout(0, character ? 4 : 3, 12, 12));
 
         for (StoreItem item : items) {
-            JPanel card = new JPanel(new BorderLayout(0, 6));
+            boolean background = currentCategory.equals("배경");
+            ImageIcon backgroundIcon = background
+                    ? loadImage(item.imageName, 0, 0, false) : null;
+            JPanel card = new RoundedPanel(new BorderLayout(0, 6)) {
+                @Override
+                protected void paintComponent(Graphics graphics) {
+                    super.paintComponent(graphics);
+                    if (backgroundIcon == null || backgroundIcon.getIconWidth() <= 0
+                            || backgroundIcon.getIconHeight() <= 0) return;
+                    Graphics2D g = (Graphics2D) graphics.create();
+                    try {
+                        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                                RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                        double scale = Math.max((double) getWidth() / backgroundIcon.getIconWidth(),
+                                (double) getHeight() / backgroundIcon.getIconHeight());
+                        int width = (int) Math.ceil(backgroundIcon.getIconWidth() * scale);
+                        int height = (int) Math.ceil(backgroundIcon.getIconHeight() * scale);
+                        g.drawImage(backgroundIcon.getImage(), (getWidth() - width) / 2,
+                                (getHeight() - height) / 2, width, height, this);
+                    } finally {
+                        g.dispose();
+                    }
+                }
+            };
             card.setPreferredSize(new Dimension(120, 155));
             card.setBackground(item == selectedItem ? Theme.PRIMARY_TINT : CARD_BG);
             card.setBorder(BorderFactory.createCompoundBorder(
-                    new LineBorder(item == selectedItem ? SELECTED_BORDER : BORDER_COLOR, item == selectedItem ? 3 : 2, true),
+                    new RoundedBorder(item == selectedItem ? SELECTED_BORDER : BORDER_COLOR, 3),
                     new EmptyBorder(8, 8, 8, 8)
             ));
             card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
             JLabel imgLabel = new JLabel("", SwingConstants.CENTER);
-            ImageIcon icon = loadImage(item.imageName, 85, 85, true);
-            if (icon != null) {
+            ImageIcon icon = background ? null : loadImage(item.imageName,
+                    character ? 85 * 1.10 * 1.10 : 140,
+                    character ? 85 * 1.10 * 1.10 : 110, !currentCategory.equals("배경"));
+            if (background && backgroundIcon != null) {
+                // The background fills the card behind its status label.
+            } else if (icon != null) {
                 imgLabel.setIcon(icon);
             } else {
                 imgLabel.setText(item.name);
@@ -281,7 +340,7 @@ public class StorePanel extends JPanel {
             priceLabel.setFont(font(14));
             priceLabel.setForeground(Theme.TEXT);
             if (!item.owned) {
-                ImageIcon miniCoin = loadImage("coin.png", 14, 14, true);
+                ImageIcon miniCoin = loadImage(ImagePaths.STORE_COIN, 14, 14, true);
                 if (miniCoin != null) {
                     priceLabel.setIcon(miniCoin);
                 }
@@ -291,23 +350,16 @@ public class StorePanel extends JPanel {
             card.addMouseListener(new java.awt.event.MouseAdapter() {
                 @Override
                 public void mouseClicked(java.awt.event.MouseEvent e) {
+                    StoreItem previous = selectedItem;
                     selectedItem = item;
-                    refreshGrid(items);
+                    if (previous != null) updateCardSelection(previous);
+                    updateCardSelection(item);
                     updatePreviewPanel();
                 }
             });
 
+            itemCards.put(item.id, card);
             gridPanel.add(card);
-        }
-
-        // 8칸 최소 그리드 유지용 빈 슬롯 채우기
-        int minSlots = 8;
-        for (int i = items.size(); i < minSlots; i++) {
-            JPanel emptySlot = new JPanel();
-            emptySlot.setPreferredSize(new Dimension(120, 155));
-            emptySlot.setBackground(new Color(245, 247, 242));
-            emptySlot.setBorder(new LineBorder(new Color(225, 232, 215), 2, true));
-            gridPanel.add(emptySlot);
         }
 
         gridPanel.revalidate();
@@ -318,7 +370,12 @@ public class StorePanel extends JPanel {
         if (selectedItem == null) return;
 
         previewNameLabel.setText(selectedItem.name);
-        ImageIcon bigIcon = loadImage(selectedItem.imageName, 175, 175, true);
+        ImageIcon bigIcon;
+        if (currentCategory.equals("배경")) {
+            bigIcon = loadImage(selectedItem.imageName, 0, 0, false);
+        } else {
+            bigIcon = loadImage(selectedItem.imageName, 175, 175, true);
+        }
         if (bigIcon != null) {
             previewImageLabel.setIcon(bigIcon);
             previewImageLabel.setText(null);
@@ -334,87 +391,80 @@ public class StorePanel extends JPanel {
             actionButton.setText("장착하기");
             actionButton.setEnabled(true);
         } else {
-            actionButton.setText("구매하기 (" + String.format("%,d", selectedItem.price) + ")");
+            actionButton.setText("구매하기");
             actionButton.setEnabled(true);
         }
     }
 
     private void handleActionClick() {
-        if (selectedItem == null) return;
-
-        if (!selectedItem.owned) {
-            if (userCoins < selectedItem.price) {
-                JOptionPane.showMessageDialog(this, "코인이 부족합니다!", "상점", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-            int confirm = JOptionPane.showConfirmDialog(
-                    this,
-                    selectedItem.name + "을(를) " + selectedItem.price + " 코인에 구매하시겠습니까?",
-                    "아이템 구매",
-                    JOptionPane.YES_NO_OPTION
-            );
-            if (confirm == JOptionPane.YES_OPTION) {
-                userCoins -= selectedItem.price;
-                selectedItem.owned = true;
-                equipSelectedItem();
-                coinButton.setText(String.format("%,d", userCoins));
-            }
-        } else if (!selectedItem.equipped) {
-            equipSelectedItem();
+        if (selectedItem == null || selectedItem.equipped) return;
+        if (!selectedItem.owned && JOptionPane.showConfirmDialog(this,
+                selectedItem.name + "을(를) " + selectedItem.price + " 코인에 구매하시겠습니까?",
+                "아이템 구매", JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) return;
+        try {
+            data.buyOrEquip(selectedItem.id);
+            vocaland.ui.components.BackgroundPanel.setBackgroundImage(data.equippedImage("BACKGROUND"));
+            refreshData();
+            repaint();
+        } catch (RuntimeException error) {
+            JOptionPane.showMessageDialog(this, error.getMessage(), "상점", JOptionPane.ERROR_MESSAGE);
         }
-
-        selectCategory(currentCategory);
-    }
-
-    private void equipSelectedItem() {
-        for (StoreItem item : allItems) {
-            if (item.category.equals(selectedItem.category)) {
-                item.equipped = false;
-            }
-        }
-        selectedItem.equipped = true;
     }
 
     private void goBackToMain() {
         onBackToMain.run();
     }
 
-    private ImageIcon loadImage(String imageName, int maxWidth, int maxHeight, boolean trim) {
-        File file = new File("images", imageName);
-        if (!file.isFile()) return null;
-
-        try {
-            BufferedImage image = ImageIO.read(file);
-            if (image == null) return null;
-
-            if (trim) {
-                image = trimTransparentMargins(image);
-            }
-
-            double scale = Math.min((double) maxWidth / image.getWidth(), (double) maxHeight / image.getHeight());
-            int width = Math.max(1, (int) Math.round(image.getWidth() * scale));
-            int height = Math.max(1, (int) Math.round(image.getHeight() * scale));
-
-            return new ImageIcon(image.getScaledInstance(width, height, Image.SCALE_SMOOTH));
-        } catch (IOException ignored) {
-            return null;
-        }
+    private void updateCardSelection(StoreItem item) {
+        JPanel card = itemCards.get(item.id);
+        if (card == null) return;
+        card.setBackground(item == selectedItem ? Theme.PRIMARY_TINT : CARD_BG);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedBorder(item == selectedItem ? SELECTED_BORDER : BORDER_COLOR, 3),
+                new EmptyBorder(8, 8, 8, 8)));
+        card.repaint();
     }
 
-    private BufferedImage trimTransparentMargins(BufferedImage image) {
-        int left = image.getWidth(), top = image.getHeight(), right = -1, bottom = -1;
-        for (int y = 0; y < image.getHeight(); y++) {
-            for (int x = 0; x < image.getWidth(); x++) {
-                if ((image.getRGB(x, y) >>> 24) > 16) {
-                    left = Math.min(left, x);
-                    top = Math.min(top, y);
-                    right = Math.max(right, x);
-                    bottom = Math.max(bottom, y);
+    private ImageIcon loadImage(String name, double width, double height, boolean trim) {
+        return imagesReady ? imageCache.get(name, width, height, trim) : null;
+    }
+
+    private void prepareImages() {
+        List<StoreItem> snapshot = List.copyOf(allItems);
+        new SwingWorker<Void, Void>() {
+            @Override protected Void doInBackground() {
+                imageCache.prepare(ImagePaths.TEXT_GO_MAIN, 102, 24, false);
+                imageCache.prepare(ImagePaths.LOGO_STORE, 187, 54, true);
+                imageCache.prepare(ImagePaths.STORE_COIN, 20, 20, true);
+                imageCache.prepare(ImagePaths.STORE_COIN, 14, 14, true);
+                for (StoreItem item : snapshot) {
+                    if (item.category.equals("배경")) {
+                        imageCache.prepare(item.imageName, 0, 0, false);
+                    } else {
+                        boolean character = item.category.equals("캐릭터");
+                        imageCache.prepare(item.imageName, character ? 85 * 1.10 * 1.10 : 140,
+                                character ? 85 * 1.10 * 1.10 : 110, true);
+                        imageCache.prepare(item.imageName, 175, 175, true);
+                    }
+                }
+                return null;
+            }
+            @Override protected void done() {
+                try {
+                    get();
+                    imagesReady = true;
+                    remove(((BorderLayout) getLayout()).getLayoutComponent(BorderLayout.NORTH));
+                    add(createHeader(), BorderLayout.NORTH);
+                    selectCategory(currentCategory);
+                    revalidate();
+                    repaint();
+                } catch (Exception error) {
+                    previewImageLabel.setText("이미지를 불러오지 못했어요.");
+                } finally {
+                    imageCache.releaseOriginals();
                 }
             }
-        }
-        if (right < left || bottom < top) return image;
-        return image.getSubimage(left, top, right - left + 1, bottom - top + 1);
+        }.execute();
     }
 
     private JPanel transparentPanel(LayoutManager layout) {
