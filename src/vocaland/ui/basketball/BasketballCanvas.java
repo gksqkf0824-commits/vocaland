@@ -51,14 +51,8 @@ public class BasketballCanvas extends vocaland.ui.components.RoundedPanel {
     }
 
     private static Image sprite(String path, int w, int h) {
-        ImageIcon icon = new ImageIcon(path);
-        if (icon.getIconWidth() <= 0) return null;
-        Image scaled = icon.getImage().getScaledInstance(w * SPRITE_QUALITY, h * SPRITE_QUALITY, Image.SCALE_SMOOTH);
-        BufferedImage out = new BufferedImage(w * SPRITE_QUALITY, h * SPRITE_QUALITY, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = out.createGraphics();
-        g.drawImage(new ImageIcon(scaled).getImage(), 0, 0, null);
-        g.dispose();
-        return out;
+        ImageIcon icon = vocaland.ui.util.ImageAssets.icon(path, w * SPRITE_QUALITY, h * SPRITE_QUALITY);
+        return icon == null ? null : icon.getImage();
     }
 
     private BufferedImage createBackground(int w, int h) {

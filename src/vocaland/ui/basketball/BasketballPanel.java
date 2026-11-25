@@ -172,10 +172,10 @@ public class BasketballPanel extends BackgroundPanel {
     }
 
     private void initHeartIcons() {
-        Image raw = new ImageIcon(ImagePaths.ROOT + ImagePaths.GAME_HEART).getImage();
-        if (raw != null && raw.getWidth(null) > 0) {
-            Image scaled = raw.getScaledInstance(22, 22, Image.SCALE_SMOOTH);
-            activeHeartIcon = new ImageIcon(scaled);
+        ImageIcon heartIcon = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.GAME_HEART, 22, 22);
+        if (heartIcon != null) {
+            Image scaled = heartIcon.getImage();
+            activeHeartIcon = heartIcon;
 
             BufferedImage grayBuf = new BufferedImage(22, 22, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g2 = grayBuf.createGraphics();
@@ -387,14 +387,9 @@ public class BasketballPanel extends BackgroundPanel {
 
         JButton startButton = new RoundedButton("시작하기", 16);
         startButton.setFont(new Font(Font.DIALOG, Font.BOLD, 20));
-        ImageIcon startIcon = new ImageIcon(ImagePaths.ROOT + ImagePaths.TEXT_START);
-        if (startIcon.getIconWidth() > 0 && startIcon.getIconHeight() > 0) {
-            double scale = Math.min(100.0 / startIcon.getIconWidth(),
-                    30.0 / startIcon.getIconHeight());
-            startButton.setIcon(new ImageIcon(startIcon.getImage().getScaledInstance(
-                    Math.max(1, (int) Math.round(startIcon.getIconWidth() * scale)),
-                    Math.max(1, (int) Math.round(startIcon.getIconHeight() * scale)),
-                    Image.SCALE_SMOOTH)));
+        ImageIcon startIcon = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.TEXT_START, 100, 30);
+        if (startIcon != null) {
+            startButton.setIcon(startIcon);
             startButton.setText("");
         }
         startButton.getAccessibleContext().setAccessibleName("시작하기");
@@ -412,14 +407,9 @@ public class BasketballPanel extends BackgroundPanel {
         overTitle.setFont(new Font(Font.DIALOG, Font.BOLD, 30));
         overTitle.setForeground(Theme.TEXT);
         overTitle.setAlignmentX(Component.CENTER_ALIGNMENT);
-        ImageIcon gameOverIcon = new ImageIcon(ImagePaths.ROOT + ImagePaths.GAME_GAME_OVER);
-        if (gameOverIcon.getIconWidth() > 0 && gameOverIcon.getIconHeight() > 0) {
-            double scale = Math.min(240.0 / gameOverIcon.getIconWidth(),
-                    70.0 / gameOverIcon.getIconHeight());
-            overTitle.setIcon(new ImageIcon(gameOverIcon.getImage().getScaledInstance(
-                    Math.max(1, (int) Math.round(gameOverIcon.getIconWidth() * scale)),
-                    Math.max(1, (int) Math.round(gameOverIcon.getIconHeight() * scale)),
-                    Image.SCALE_SMOOTH)));
+        ImageIcon gameOverIcon = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.GAME_GAME_OVER, 240, 70);
+        if (gameOverIcon != null) {
+            overTitle.setIcon(gameOverIcon);
             overTitle.setText("");
         }
         overTitle.getAccessibleContext().setAccessibleName("게임 오버");
@@ -539,12 +529,9 @@ public class BasketballPanel extends BackgroundPanel {
         lifeTextLabel = new JLabel("남은 기회");
         lifeTextLabel.setFont(new Font("맑은 고딕", Font.BOLD, 15));
         lifeTextLabel.setForeground(Color.BLACK);
-        ImageIcon healthIcon = new ImageIcon(ImagePaths.ROOT + ImagePaths.TEXT_HEALTH);
-        if (healthIcon.getIconWidth() > 0 && healthIcon.getIconHeight() > 0) {
-            double scale = Math.min(84.0 / healthIcon.getIconWidth(), 24.0 / healthIcon.getIconHeight());
-            lifeTextLabel.setIcon(new ImageIcon(healthIcon.getImage().getScaledInstance(
-                    Math.max(1, (int) Math.round(healthIcon.getIconWidth() * scale)),
-                    Math.max(1, (int) Math.round(healthIcon.getIconHeight() * scale)), Image.SCALE_SMOOTH)));
+        ImageIcon healthIcon = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.TEXT_HEALTH, 84, 24);
+        if (healthIcon != null) {
+            lifeTextLabel.setIcon(healthIcon);
             lifeTextLabel.setText("");
         }
         lifeTextLabel.getAccessibleContext().setAccessibleName("남은 기회");
@@ -559,14 +546,11 @@ public class BasketballPanel extends BackgroundPanel {
         scoreLabel = new JLabel("점수 0");
         scoreLabel.setFont(new Font(Font.DIALOG, Font.BOLD, 17));
         scoreLabel.setForeground(Theme.TEXT);
-        ImageIcon scoreIcon = new ImageIcon(ImagePaths.ROOT + ImagePaths.TEXT_SCORE);
-        if (scoreIcon.getIconWidth() > 0 && scoreIcon.getIconHeight() > 0) {
-            double scale = Math.min(46.0 / scoreIcon.getIconWidth(), 25.0 / scoreIcon.getIconHeight());
-            int width = Math.max(1, (int) Math.round(scoreIcon.getIconWidth() * scale));
-            int height = Math.max(1, (int) Math.round(scoreIcon.getIconHeight() * scale));
+        ImageIcon scaledScore = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.TEXT_SCORE, 46, 25);
+        if (scaledScore != null) {
+            int width = scaledScore.getIconWidth();
+            int height = scaledScore.getIconHeight();
             BufferedImage shiftedScore = new BufferedImage(width, height + 4, BufferedImage.TYPE_INT_ARGB);
-            ImageIcon scaledScore = new ImageIcon(
-                    scoreIcon.getImage().getScaledInstance(width, height, Image.SCALE_SMOOTH));
             Graphics2D g = shiftedScore.createGraphics();
             scaledScore.paintIcon(null, g, 0, 3);
             g.dispose();
@@ -578,12 +562,9 @@ public class BasketballPanel extends BackgroundPanel {
         backBtn = new RoundedButton("← 메인으로", 18);
         backBtn.setPreferredSize(new Dimension(132, 42));
         backBtn.setBorder(new EmptyBorder(8, 12, 12, 18));
-        ImageIcon backIcon = new ImageIcon(ImagePaths.ROOT + ImagePaths.TEXT_GO_MAIN);
-        if (backIcon.getIconWidth() > 0 && backIcon.getIconHeight() > 0) {
-            double scale = Math.min(102.0 / backIcon.getIconWidth(), 24.0 / backIcon.getIconHeight());
-            backBtn.setIcon(new ImageIcon(backIcon.getImage().getScaledInstance(
-                    Math.max(1, (int) Math.round(backIcon.getIconWidth() * scale)),
-                    Math.max(1, (int) Math.round(backIcon.getIconHeight() * scale)), Image.SCALE_SMOOTH)));
+        ImageIcon backIcon = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.TEXT_GO_MAIN, 102, 24);
+        if (backIcon != null) {
+            backBtn.setIcon(backIcon);
             backBtn.setText("");
             backBtn.setBorder(new EmptyBorder(13, 12, 12, 18));
         }

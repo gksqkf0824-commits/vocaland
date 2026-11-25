@@ -423,12 +423,9 @@ public class AcidRainPanel extends BackgroundPanel {
 
         JPanel livesBox = transparent(new FlowLayout(FlowLayout.CENTER, 8, 0));
         JLabel lifeTextLabel = label("남은 기회", 15);
-        ImageIcon healthIcon = new ImageIcon(ImagePaths.ROOT + ImagePaths.TEXT_HEALTH);
-        if (healthIcon.getIconWidth() > 0 && healthIcon.getIconHeight() > 0) {
-            double scale = Math.min(84.0 / healthIcon.getIconWidth(), 24.0 / healthIcon.getIconHeight());
-            lifeTextLabel.setIcon(new ImageIcon(healthIcon.getImage().getScaledInstance(
-                    Math.max(1, (int) Math.round(healthIcon.getIconWidth() * scale)),
-                    Math.max(1, (int) Math.round(healthIcon.getIconHeight() * scale)), Image.SCALE_SMOOTH)));
+        ImageIcon healthIcon = loadLabelIcon(ImagePaths.TEXT_HEALTH, 84, 24);
+        if (healthIcon != null) {
+            lifeTextLabel.setIcon(healthIcon);
             lifeTextLabel.setText("");
         }
         lifeTextLabel.getAccessibleContext().setAccessibleName("남은 기회");
@@ -458,12 +455,9 @@ public class AcidRainPanel extends BackgroundPanel {
         back.setFont(font(15));
         back.setPreferredSize(new Dimension(132, 42));
         back.setBorder(new EmptyBorder(8, 12, 12, 18));
-        ImageIcon backIcon = new ImageIcon(ImagePaths.ROOT + ImagePaths.TEXT_GO_MAIN);
-        if (backIcon.getIconWidth() > 0 && backIcon.getIconHeight() > 0) {
-            double scale = Math.min(102.0 / backIcon.getIconWidth(), 24.0 / backIcon.getIconHeight());
-            back.setIcon(new ImageIcon(backIcon.getImage().getScaledInstance(
-                    Math.max(1, (int) Math.round(backIcon.getIconWidth() * scale)),
-                    Math.max(1, (int) Math.round(backIcon.getIconHeight() * scale)), Image.SCALE_SMOOTH)));
+        ImageIcon backIcon = loadLabelIcon(ImagePaths.TEXT_GO_MAIN, 102, 24);
+        if (backIcon != null) {
+            back.setIcon(backIcon);
             back.setText("");
             back.setBorder(new EmptyBorder(13, 12, 12, 18));
         }
@@ -669,16 +663,8 @@ public class AcidRainPanel extends BackgroundPanel {
         }
 
         private static Image loadHeart() {
-            File file = new File("images", ImagePaths.GAME_HEART);
-            if (!file.isFile()) {
-                return null;
-            }
-            try {
-                BufferedImage image = ImageIO.read(file);
-                return image == null ? null : image.getScaledInstance(SIZE, SIZE, Image.SCALE_SMOOTH);
-            } catch (IOException e) {
-                return null;
-            }
+            ImageIcon icon = loadLabelIcon(ImagePaths.GAME_HEART, SIZE, SIZE);
+            return icon == null ? null : icon.getImage();
         }
     }
 
