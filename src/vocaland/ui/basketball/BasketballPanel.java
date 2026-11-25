@@ -25,11 +25,12 @@ import vocaland.ui.components.BackgroundPanel;
  * setOnGameOver()         : 게임이 끝났을 때 점수·놓친 단어를 받을 코드 등록 (백엔드용)
  * startGamePlay()         : 선택한 모드와 난이도로 실제 게임 시작
  * showGameOverOverlay()   : 게임 오버 결과 카드 표시 및 콜백 호출
- * createTopBar()          : 상단 (제목, 남은 기회, 점수, 메인으로)
+ * createTopBar()          : 상단 (제목, 익스트림 전용 포물선 스위치 버튼, 남은 기회, 점수, 메인으로)
  * createWrongReviewBox()  : 우측 (오답 복습 목록)
  * createBottomHelpBar()   : 하단 (키보드 조작법 안내 문구)
- * createStartOverlay()    : 시작 대기 안내창 (모드 선택, 이지/하드 난이도 선택)
+ * createStartOverlay()    : 시작 대기 안내창 (모드 선택, 이지/하드/익스트림 난이도 선택)
  * createGameOverOverlay() : 게임 오버 안내창 (최종 점수, 다시하기, 모드 변경, 메인으로)
+ * syncExtremeSwitchUI()   : 익스트림 모드 여부에 따른 상단 바 입체 스위치 표시 및 색상 동기화
  * main()                  : 혼자 테스트용 실행
  */
 public class BasketballPanel extends BackgroundPanel {
@@ -39,6 +40,9 @@ public class BasketballPanel extends BackgroundPanel {
     private static final Color BLUE_BTN_SHADOW = new Color(66, 145, 210);
     private static final Color RED_BTN = new Color(239, 83, 80);
     private static final Color RED_BTN_SHADOW = new Color(198, 40, 40);
+    private static final Color PURPLE_BTN = new Color(156, 39, 176);
+    private static final Color PURPLE_BTN_END = new Color(94, 53, 177);
+    private static final Color PURPLE_BTN_SHADOW = new Color(69, 39, 160);
     private static final Color MINT_CARD = new Color(241, 248, 233);
     private static final Color BORDER_BLACK = Color.BLACK;
 
@@ -52,11 +56,12 @@ public class BasketballPanel extends BackgroundPanel {
     private BiConsumer<Integer, List<String>> onGameOver;
     private BiConsumer<String, Boolean> onAnswer;
     public void setOnAnswer(BiConsumer<String, Boolean> listener) { onAnswer = listener; }
-    public boolean isHardMode() { return game.isHardMode(); }
+    public BasketballGame.Difficulty getDifficulty() { return game.getDifficulty(); }
     public void setHoopImage(String path) { canvas.setHoopImage(path); }
     public void setBallImage(String path) { canvas.setBallImage(path); }
 
     private JLabel titleLabel;
+    private PillButton extremeSwitchBtn;
     private JLabel lifeTextLabel;
     private JLabel scoreLabel;
     private JButton backBtn;
@@ -163,13 +168,14 @@ public class BasketballPanel extends BackgroundPanel {
         });
 
         updateTopStatus();
+        syncExtremeSwitchUI();
     }
 
     private void initHeartIcons() {
-        Image raw = new ImageIcon(ImagePaths.ROOT + ImagePaths.GAME_HEART).getImage();
-        if (raw != null && raw.getWidth(null) > 0) {
-            Image scaled = raw.getScaledInstance(22, 22, Image.SCALE_SMOOTH);
-            activeHeartIcon = new ImageIcon(scaled);
+        ImageIcon heartIcon = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.GAME_HEART, 22, 22);
+        if (heartIcon != null) {
+            Image scaled = heartIcon.getImage();
+            activeHeartIcon = heartIcon;
 
             BufferedImage grayBuf = new BufferedImage(22, 22, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g2 = grayBuf.createGraphics();
@@ -196,12 +202,18 @@ public class BasketballPanel extends BackgroundPanel {
 
     private static class PillButton extends JButton {
         private Color mainColor;
+        private Color gradientEndColor;
         private Color shadowColor;
         private boolean isPressed = false;
 
         public PillButton(String text, Color mainColor, Color shadowColor) {
+            this(text, mainColor, null, shadowColor);
+        }
+
+        public PillButton(String text, Color mainColor, Color gradientEndColor, Color shadowColor) {
             super(text);
             this.mainColor = mainColor;
+            this.gradientEndColor = gradientEndColor;
             this.shadowColor = shadowColor;
             setFont(new Font("맑은 고딕", Font.BOLD, 15));
             setForeground(Color.BLACK);
@@ -226,6 +238,12 @@ public class BasketballPanel extends BackgroundPanel {
             });
         }
 
+        public void setButtonColors(Color main, Color shadow) {
+            this.mainColor = main;
+            this.gradientEndColor = null;
+            this.shadowColor = shadow;
+            repaint();
+        }
 
         @Override
         protected void paintComponent(Graphics g) {
@@ -240,11 +258,14 @@ public class BasketballPanel extends BackgroundPanel {
             g2.setColor(shadowColor);
             g2.fillRoundRect(0, shadowOffset, w, h - shadowOffset, 22, 22);
 
-            Color fill = isSelected() ? mainColor : new Color(
-                    (mainColor.getRed() + 3 * 255) / 4,
-                    (mainColor.getGreen() + 3 * 255) / 4,
-                    (mainColor.getBlue() + 3 * 255) / 4);
-            g2.setColor(fill);
+            // 선택 안 된 버튼은 옅게(main), 선택된 버튼은 원래 색 + 그라데이션(develop)
+            if (!isSelected()) {
+                g2.setColor(pale(mainColor));
+            } else if (gradientEndColor != null) {
+                g2.setPaint(new GradientPaint(0, yOffset, mainColor, w, h - shadowOffset, gradientEndColor));
+            } else {
+                g2.setColor(mainColor);
+            }
             g2.fillRoundRect(0, yOffset, w, h - shadowOffset, 22, 22);
             if (isSelected()) {
                 g2.setColor(shadowColor);
@@ -260,6 +281,10 @@ public class BasketballPanel extends BackgroundPanel {
             g2.drawString(text, textX, textY);
 
             g2.dispose();
+        }
+
+        private static Color pale(Color c) {
+            return new Color((c.getRed() + 3 * 255) / 4, (c.getGreen() + 3 * 255) / 4, (c.getBlue() + 3 * 255) / 4);
         }
     }
 
@@ -307,23 +332,45 @@ public class BasketballPanel extends BackgroundPanel {
 
         PillButton hardBtn = new PillButton("하드 모드", RED_BTN, RED_BTN_SHADOW);
         hardBtn.setForeground(Color.WHITE);
-        easyBtn.setSelected(!game.isHardMode());
-        hardBtn.setSelected(game.isHardMode());
-        easyBtn.addActionListener(e -> {
-            game.setHardMode(false);
-            easyBtn.setSelected(true);
-            hardBtn.setSelected(false);
+
+        JPanel expertBtnRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        expertBtnRow.setOpaque(false);
+
+        PillButton expertBtn = new PillButton("익스퍼트 모드", PURPLE_BTN, PURPLE_BTN_END, PURPLE_BTN_SHADOW);
+        expertBtn.setForeground(Color.WHITE);
+
+        // 난이도 버튼은 고르기만 하고, 시작은 아래 [시작하기] 버튼으로 (main 방식)
+        Runnable syncDifficulty = () -> {
+            BasketballGame.Difficulty d = game.getDifficulty();
+            easyBtn.setSelected(d == BasketballGame.Difficulty.EASY);
+            hardBtn.setSelected(d == BasketballGame.Difficulty.HARD);
+            expertBtn.setSelected(d == BasketballGame.Difficulty.EXTREME);
             diffBtnRow.repaint();
+            expertBtnRow.repaint();
+        };
+        easyBtn.addActionListener(e -> {
+            game.setDifficulty(BasketballGame.Difficulty.EASY);
+            syncDifficulty.run();
         });
         hardBtn.addActionListener(e -> {
-            game.setHardMode(true);
-            easyBtn.setSelected(false);
-            hardBtn.setSelected(true);
-            diffBtnRow.repaint();
+            game.setDifficulty(BasketballGame.Difficulty.HARD);
+            syncDifficulty.run();
         });
+        expertBtn.addActionListener(e -> {
+            game.setDifficulty(BasketballGame.Difficulty.EXTREME);
+            syncDifficulty.run();
+        });
+        syncDifficulty.run();
 
         diffBtnRow.add(easyBtn);
         diffBtnRow.add(hardBtn);
+
+        expertBtnRow.add(expertBtn);
+
+        JLabel expertDesc = new JLabel("※ 물리 엔진 강화");
+        expertDesc.setFont(new Font("맑은 고딕", Font.BOLD, 12));
+        expertDesc.setForeground(new Color(106, 27, 154));
+        expertDesc.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         card.add(title);
         card.add(Box.createVerticalStrut(20));
@@ -332,18 +379,17 @@ public class BasketballPanel extends BackgroundPanel {
         card.add(diffTitle);
         card.add(Box.createVerticalStrut(8));
         card.add(diffBtnRow);
+        card.add(Box.createVerticalStrut(10));
+        card.add(expertBtnRow);
+        card.add(Box.createVerticalStrut(6));
+        card.add(expertDesc);
         card.add(Box.createVerticalStrut(18));
 
         JButton startButton = new RoundedButton("시작하기", 16);
         startButton.setFont(new Font(Font.DIALOG, Font.BOLD, 20));
-        ImageIcon startIcon = new ImageIcon(ImagePaths.ROOT + ImagePaths.TEXT_START);
-        if (startIcon.getIconWidth() > 0 && startIcon.getIconHeight() > 0) {
-            double scale = Math.min(100.0 / startIcon.getIconWidth(),
-                    30.0 / startIcon.getIconHeight());
-            startButton.setIcon(new ImageIcon(startIcon.getImage().getScaledInstance(
-                    Math.max(1, (int) Math.round(startIcon.getIconWidth() * scale)),
-                    Math.max(1, (int) Math.round(startIcon.getIconHeight() * scale)),
-                    Image.SCALE_SMOOTH)));
+        ImageIcon startIcon = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.TEXT_START, 100, 30);
+        if (startIcon != null) {
+            startButton.setIcon(startIcon);
             startButton.setText("");
         }
         startButton.getAccessibleContext().setAccessibleName("시작하기");
@@ -361,14 +407,9 @@ public class BasketballPanel extends BackgroundPanel {
         overTitle.setFont(new Font(Font.DIALOG, Font.BOLD, 30));
         overTitle.setForeground(Theme.TEXT);
         overTitle.setAlignmentX(Component.CENTER_ALIGNMENT);
-        ImageIcon gameOverIcon = new ImageIcon(ImagePaths.ROOT + ImagePaths.GAME_GAME_OVER);
-        if (gameOverIcon.getIconWidth() > 0 && gameOverIcon.getIconHeight() > 0) {
-            double scale = Math.min(240.0 / gameOverIcon.getIconWidth(),
-                    70.0 / gameOverIcon.getIconHeight());
-            overTitle.setIcon(new ImageIcon(gameOverIcon.getImage().getScaledInstance(
-                    Math.max(1, (int) Math.round(gameOverIcon.getIconWidth() * scale)),
-                    Math.max(1, (int) Math.round(gameOverIcon.getIconHeight() * scale)),
-                    Image.SCALE_SMOOTH)));
+        ImageIcon gameOverIcon = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.GAME_GAME_OVER, 240, 70);
+        if (gameOverIcon != null) {
+            overTitle.setIcon(gameOverIcon);
             overTitle.setText("");
         }
         overTitle.getAccessibleContext().setAccessibleName("게임 오버");
@@ -391,6 +432,7 @@ public class BasketballPanel extends BackgroundPanel {
             game.toReadyState();
             gameOverOverlay.setVisible(false);
             startOverlay.setVisible(true);
+            syncExtremeSwitchUI();
             canvas.repaint();
         });
 
@@ -416,6 +458,7 @@ public class BasketballPanel extends BackgroundPanel {
         startOverlay.setVisible(false);
         gameOverOverlay.setVisible(false);
         game.startNewGame();
+        syncExtremeSwitchUI();
         updateTopStatus();
         refreshWrongList();
         canvas.repaint();
@@ -428,6 +471,24 @@ public class BasketballPanel extends BackgroundPanel {
         }
         finalScoreLabel.setText("점수 " + String.format("%,d", game.getScore()));
         gameOverOverlay.setVisible(true);
+    }
+
+    private void syncExtremeSwitchUI() {
+        if (extremeSwitchBtn == null) {
+            return;
+        }
+        boolean showSwitch = game.isExtremeMode() && (game.getState() != BasketballGame.State.READY);
+        extremeSwitchBtn.setVisible(showSwitch);
+
+        if (game.isExtremeHardTrajectory()) {
+            extremeSwitchBtn.setText("포물선: 하드");
+            extremeSwitchBtn.setButtonColors(RED_BTN, RED_BTN_SHADOW);
+            extremeSwitchBtn.setForeground(Color.WHITE);
+        } else {
+            extremeSwitchBtn.setText("포물선: 이지");
+            extremeSwitchBtn.setButtonColors(BLUE_BTN, BLUE_BTN_SHADOW);
+            extremeSwitchBtn.setForeground(Color.WHITE);
+        }
     }
 
     private JPanel createTopBar() {
@@ -450,18 +511,27 @@ public class BasketballPanel extends BackgroundPanel {
         JPanel rightInfo = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         rightInfo.setOpaque(false);
 
+        extremeSwitchBtn = new PillButton("포물선: 하드", RED_BTN, RED_BTN_SHADOW);
+        extremeSwitchBtn.setForeground(Color.WHITE);
+        extremeSwitchBtn.setVisible(false);
+        extremeSwitchBtn.addActionListener(e -> {
+            game.setExtremeHardTrajectory(!game.isExtremeHardTrajectory());
+            syncExtremeSwitchUI();
+            canvas.repaint();
+            requestFocusInWindow();
+        });
+        // 포물선 전환 버튼은 항상 '선택된' 색으로 보이게
+        extremeSwitchBtn.setSelected(true);
+
         JPanel lifeContent = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 0));
         lifeContent.setOpaque(false);
 
         lifeTextLabel = new JLabel("남은 기회");
         lifeTextLabel.setFont(new Font("맑은 고딕", Font.BOLD, 15));
         lifeTextLabel.setForeground(Color.BLACK);
-        ImageIcon healthIcon = new ImageIcon(ImagePaths.ROOT + ImagePaths.TEXT_HEALTH);
-        if (healthIcon.getIconWidth() > 0 && healthIcon.getIconHeight() > 0) {
-            double scale = Math.min(84.0 / healthIcon.getIconWidth(), 24.0 / healthIcon.getIconHeight());
-            lifeTextLabel.setIcon(new ImageIcon(healthIcon.getImage().getScaledInstance(
-                    Math.max(1, (int) Math.round(healthIcon.getIconWidth() * scale)),
-                    Math.max(1, (int) Math.round(healthIcon.getIconHeight() * scale)), Image.SCALE_SMOOTH)));
+        ImageIcon healthIcon = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.TEXT_HEALTH, 84, 24);
+        if (healthIcon != null) {
+            lifeTextLabel.setIcon(healthIcon);
             lifeTextLabel.setText("");
         }
         lifeTextLabel.getAccessibleContext().setAccessibleName("남은 기회");
@@ -476,14 +546,11 @@ public class BasketballPanel extends BackgroundPanel {
         scoreLabel = new JLabel("점수 0");
         scoreLabel.setFont(new Font(Font.DIALOG, Font.BOLD, 17));
         scoreLabel.setForeground(Theme.TEXT);
-        ImageIcon scoreIcon = new ImageIcon(ImagePaths.ROOT + ImagePaths.TEXT_SCORE);
-        if (scoreIcon.getIconWidth() > 0 && scoreIcon.getIconHeight() > 0) {
-            double scale = Math.min(46.0 / scoreIcon.getIconWidth(), 25.0 / scoreIcon.getIconHeight());
-            int width = Math.max(1, (int) Math.round(scoreIcon.getIconWidth() * scale));
-            int height = Math.max(1, (int) Math.round(scoreIcon.getIconHeight() * scale));
+        ImageIcon scaledScore = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.TEXT_SCORE, 46, 25);
+        if (scaledScore != null) {
+            int width = scaledScore.getIconWidth();
+            int height = scaledScore.getIconHeight();
             BufferedImage shiftedScore = new BufferedImage(width, height + 4, BufferedImage.TYPE_INT_ARGB);
-            ImageIcon scaledScore = new ImageIcon(
-                    scoreIcon.getImage().getScaledInstance(width, height, Image.SCALE_SMOOTH));
             Graphics2D g = shiftedScore.createGraphics();
             scaledScore.paintIcon(null, g, 0, 3);
             g.dispose();
@@ -495,12 +562,9 @@ public class BasketballPanel extends BackgroundPanel {
         backBtn = new RoundedButton("← 메인으로", 18);
         backBtn.setPreferredSize(new Dimension(132, 42));
         backBtn.setBorder(new EmptyBorder(8, 12, 12, 18));
-        ImageIcon backIcon = new ImageIcon(ImagePaths.ROOT + ImagePaths.TEXT_GO_MAIN);
-        if (backIcon.getIconWidth() > 0 && backIcon.getIconHeight() > 0) {
-            double scale = Math.min(102.0 / backIcon.getIconWidth(), 24.0 / backIcon.getIconHeight());
-            backBtn.setIcon(new ImageIcon(backIcon.getImage().getScaledInstance(
-                    Math.max(1, (int) Math.round(backIcon.getIconWidth() * scale)),
-                    Math.max(1, (int) Math.round(backIcon.getIconHeight() * scale)), Image.SCALE_SMOOTH)));
+        ImageIcon backIcon = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.TEXT_GO_MAIN, 102, 24);
+        if (backIcon != null) {
+            backBtn.setIcon(backIcon);
             backBtn.setText("");
             backBtn.setBorder(new EmptyBorder(13, 12, 12, 18));
         }
@@ -512,6 +576,7 @@ public class BasketballPanel extends BackgroundPanel {
             }
         });
 
+        rightInfo.add(extremeSwitchBtn);
         rightInfo.add(lifeBox);
         rightInfo.add(scoreBox);
         rightInfo.add(backBtn);
@@ -665,11 +730,12 @@ public class BasketballPanel extends BackgroundPanel {
             return;
         }
 
-        double uiScale = Math.min(1.0, Math.min(w / 1020.0, h / 620.0));
-        uiScale = Math.max(0.6, uiScale);
+        double uiScale = Math.min(1.45, Math.min(w / 1020.0, h / 620.0));
+        uiScale = Math.max(0.65, uiScale);
 
         wrongReviewBox.setPreferredSize(new Dimension((int) (250 * uiScale), 0));
         titleLabel.setFont(new Font("맑은 고딕", Font.BOLD, (int) (26 * uiScale)));
+        extremeSwitchBtn.setFont(new Font("맑은 고딕", Font.BOLD, (int) (14 * uiScale)));
         lifeTextLabel.setFont(new Font("맑은 고딕", Font.BOLD, (int) (15 * uiScale)));
         scoreLabel.setFont(new Font("맑은 고딕", Font.BOLD, (int) (16 * uiScale)));
         wrongHeaderLabel.setFont(new Font(Font.DIALOG, Font.BOLD, 17));
@@ -693,6 +759,7 @@ public class BasketballPanel extends BackgroundPanel {
         game.toReadyState();
         startOverlay.setVisible(true);
         gameOverOverlay.setVisible(false);
+        syncExtremeSwitchUI();
         updateTopStatus();
         refreshWrongList();
         if (!gameTimer.isRunning()) {

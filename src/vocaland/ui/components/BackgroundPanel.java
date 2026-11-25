@@ -10,10 +10,10 @@ public class BackgroundPanel extends JPanel {
     static { setBackgroundImage(null); }
 
     public static void setBackgroundImage(String path) {
-        ImageIcon source = new ImageIcon(path == null ? ImagePaths.ROOT + ImagePaths.STORE_BACKGROUND_BG_BASIC : path);
-        if (source.getIconWidth() <= 0) source = new ImageIcon(ImagePaths.ROOT + ImagePaths.STORE_BACKGROUND_BG_BASIC);
-        background = source.getIconWidth() > 0
-                ? new ImageIcon(source.getImage().getScaledInstance(620, 620, Image.SCALE_SMOOTH)) : null;
+        // 결과가 캐시되어, 같은 배경으로 돌아올 때 다시 읽지 않음
+        ImageIcon icon = vocaland.ui.util.ImageAssets.icon(path == null ? ImagePaths.ROOT + ImagePaths.STORE_BACKGROUND_BG_BASIC : path, 620, 620);
+        if (icon == null) icon = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.STORE_BACKGROUND_BG_BASIC, 620, 620);
+        background = icon;
     }
 
     public static void paintBackground(Component component, Graphics graphics) {

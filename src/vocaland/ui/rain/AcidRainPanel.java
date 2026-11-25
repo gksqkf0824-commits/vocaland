@@ -20,13 +20,10 @@ import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.IntConsumer;
-import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.JButton;
@@ -688,16 +685,8 @@ public class AcidRainPanel extends BackgroundPanel {
         }
 
         private static Image loadHeart() {
-            File file = new File(ImagePaths.ROOT + ImagePaths.GAME_HEART);
-            if (!file.isFile()) {
-                return null;
-            }
-            try {
-                BufferedImage image = ImageIO.read(file);
-                return image == null ? null : image.getScaledInstance(SIZE, SIZE, Image.SCALE_SMOOTH);
-            } catch (IOException e) {
-                return null;
-            }
+            ImageIcon icon = loadLabelIcon(ImagePaths.GAME_HEART, SIZE, SIZE);
+            return icon == null ? null : icon.getImage();
         }
     }
 
