@@ -19,7 +19,7 @@ import java.awt.image.BufferedImage;
  * drawNetFrontOverlay()    : 익스퍼트 모드 골인 시 공이 그물 안으로 들어가는 입체감을 위한 그물 앞부분 오버레이 그리기
  * drawPowerInfoBox()       : 하단 각도 및 힘 게이지 정보창 그리기
  * drawBall()               : 농구공 스프라이트 그리기
- * drawFireworksEffect()    : 정답 골인 시 골대 주변 폭죽 및 NICE SHOT! 연출 그리기
+ * drawFireworksEffect()    : 정답 골인 시 골대 주변 폭죽 및 획득 점수 연출 그리기
  * drawScreenOverlayEffect(): 실패 시 화면 전체 오버레이 연출 분기 ('아닙니다!', '저런!', 'HOME RUN')
  * drawSlantedAlertText()   : 대각선 거대 빨간색 '아닙니다!' / '저런!' 텍스트 팝업 그리기
  * drawHomeRunEffect()      : 골대 넘어감 시 가로 그라데이션 띠 + 3단계 가감속 HOME RUN 연출 그리기

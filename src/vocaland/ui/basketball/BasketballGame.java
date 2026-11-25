@@ -21,7 +21,7 @@ import java.util.Set;
  * toReadyState()            : 모드 선택 대기 상태로 전환
  * nextQuestion()            : 새 문제와 3개의 골대 선택지 생성
  * adjustAngle()             : 발사 각도 조절 (0° ~ 90°)
- * adjustPower()             : 발사 힘 조절 (12 ~ 28)
+ * adjustPower()             : 발사 힘 조절 (13.5 ~ 32.5)
  * shoot()                   : 현재 각도와 힘으로 공 발사 (vx, vy 계산)
  * updatePhysics()           : 난이도별(일반/익스퍼트) 한 프레임 물리 이동 및 판정 (0:진행, 1:정답, 2:오답, 3:게임오버)
  * updateEffect()            : 연출 타이머 진행 및 연출 완료 시 다음 단어 전환/게임오버 확정
