@@ -13,6 +13,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -61,6 +62,7 @@ public class RainGameCanvas extends vocaland.ui.components.RoundedPanel {
     private final RainGame game;
     private final List<Popup> popups = new ArrayList<>();
     private final ImageIcon rainBackground = new ImageIcon(ImagePaths.ROOT + ImagePaths.GAME_RAIN_BACKGROUND);
+    private BufferedImage skyCache;
     private JComponent overlay;
     private JComponent input;
 
@@ -165,18 +167,32 @@ public class RainGameCanvas extends vocaland.ui.components.RoundedPanel {
         int height = groundY + GROUND_HEIGHT;
         if (width <= 0 || height <= 0) return;
         if (rainBackground.getIconWidth() > 0 && rainBackground.getIconHeight() > 0) {
-            double scale = Math.max((double) width / rainBackground.getIconWidth(),
-                    (double) height / rainBackground.getIconHeight());
-            int imageWidth = (int) Math.ceil(rainBackground.getIconWidth() * scale);
-            int imageHeight = (int) Math.ceil(rainBackground.getIconHeight() * scale);
-            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                    RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            g.drawImage(rainBackground.getImage(), (width - imageWidth) / 2,
-                    (height - imageHeight) / 2, imageWidth, imageHeight, this);
+            // 매 프레임 큰 원본을 축소하면 느려서, 크기가 바뀔 때만 한 번 축소해 둔 그림을 씀
+            if (skyCache == null || skyCache.getWidth() != width || skyCache.getHeight() != height) {
+                skyCache = createSky(width, height);
+            }
+            g.drawImage(skyCache, 0, 0, null);
             return;
         }
         g.setPaint(new GradientPaint(0, 0, SKY_TOP, 0, groundY, SKY_BOTTOM));
         g.fillRect(0, 0, width, groundY);
+    }
+
+    private BufferedImage createSky(int width, int height) {
+        double scale = Math.max((double) width / rainBackground.getIconWidth(),
+                (double) height / rainBackground.getIconHeight());
+        int imageWidth = (int) Math.ceil(rainBackground.getIconWidth() * scale);
+        int imageHeight = (int) Math.ceil(rainBackground.getIconHeight() * scale);
+        BufferedImage sky = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = sky.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.drawImage(rainBackground.getImage(), (width - imageWidth) / 2,
+                    (height - imageHeight) / 2, imageWidth, imageHeight, null);
+        } finally {
+            g.dispose();
+        }
+        return sky;
     }
 
     private void drawWord(Graphics2D g, FallingWord word) {

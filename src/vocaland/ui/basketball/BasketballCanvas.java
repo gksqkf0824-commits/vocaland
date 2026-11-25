@@ -4,6 +4,7 @@ import vocaland.ui.util.ImagePaths;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.image.BufferedImage;
 
 /*
  * BasketballCanvas - 농구 게임 코트 영역 (그리기만 담당)
@@ -27,19 +28,57 @@ public class BasketballCanvas extends vocaland.ui.components.RoundedPanel {
     private final BasketballGame game;
     private final Image courtBackground = new ImageIcon(
             ImagePaths.ROOT + ImagePaths.GAME_BASKETBALL_BACKGROUND).getImage();
-    private Image ballImg = new ImageIcon(ImagePaths.ROOT + ImagePaths.STORE_BASKETBALL_BALL_BASIC).getImage();
-    private Image hoopImg = new ImageIcon(ImagePaths.ROOT + ImagePaths.STORE_BASKETBALL_HOOP_BASIC).getImage();
+    // 원본(1200px 이상)을 매 프레임 축소하면 느려서, 그릴 크기의 2배로 미리 한 번 줄여 둠
+    private static final int SPRITE_QUALITY = 2;
+    private Image ballImg = sprite(ImagePaths.ROOT + ImagePaths.STORE_BASKETBALL_BALL_BASIC,
+            (int) BasketballGame.BALL_SIZE, (int) BasketballGame.BALL_SIZE);
+    private Image hoopImg = sprite(ImagePaths.ROOT + ImagePaths.STORE_BASKETBALL_HOOP_BASIC,
+            BasketballGame.HOOP_W, BasketballGame.HOOP_H);
+    private BufferedImage backgroundCache;
 
     public void setHoopImage(String path) {
-        ImageIcon icon = new ImageIcon(path == null ? ImagePaths.ROOT + ImagePaths.STORE_BASKETBALL_HOOP_BASIC : path);
-        if (icon.getIconWidth() > 0) hoopImg = icon.getImage();
+        Image img = sprite(path == null ? ImagePaths.ROOT + ImagePaths.STORE_BASKETBALL_HOOP_BASIC : path,
+                BasketballGame.HOOP_W, BasketballGame.HOOP_H);
+        if (img != null) hoopImg = img;
         repaint();
     }
 
     public void setBallImage(String path) {
-        ImageIcon icon = new ImageIcon(path == null ? ImagePaths.ROOT + ImagePaths.STORE_BASKETBALL_BALL_BASIC : path);
-        if (icon.getIconWidth() > 0) ballImg = icon.getImage();
+        Image img = sprite(path == null ? ImagePaths.ROOT + ImagePaths.STORE_BASKETBALL_BALL_BASIC : path,
+                (int) BasketballGame.BALL_SIZE, (int) BasketballGame.BALL_SIZE);
+        if (img != null) ballImg = img;
         repaint();
+    }
+
+    private static Image sprite(String path, int w, int h) {
+        ImageIcon icon = new ImageIcon(path);
+        if (icon.getIconWidth() <= 0) return null;
+        Image scaled = icon.getImage().getScaledInstance(w * SPRITE_QUALITY, h * SPRITE_QUALITY, Image.SCALE_SMOOTH);
+        BufferedImage out = new BufferedImage(w * SPRITE_QUALITY, h * SPRITE_QUALITY, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = out.createGraphics();
+        g.drawImage(new ImageIcon(scaled).getImage(), 0, 0, null);
+        g.dispose();
+        return out;
+    }
+
+    private BufferedImage createBackground(int w, int h) {
+        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g2 = out.createGraphics();
+        g2.setPaint(new GradientPaint(0, 0, GRADIENT_TOP, 0, h, GRADIENT_BOTTOM));
+        g2.fillRect(0, 0, w, h);
+        if (courtBackground.getWidth(null) > 0 && courtBackground.getHeight(null) > 0) {
+            double backgroundScale = Math.max((double) w / courtBackground.getWidth(null),
+                    (double) h / courtBackground.getHeight(null));
+            int backgroundWidth = (int) Math.ceil(courtBackground.getWidth(null) * backgroundScale);
+            int backgroundHeight = (int) Math.ceil(courtBackground.getHeight(null) * backgroundScale);
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g2.drawImage(courtBackground, (w - backgroundWidth) / 2, (h - backgroundHeight) / 2,
+                    backgroundWidth, backgroundHeight, null);
+            g2.setColor(new Color(255, 255, 255, 145));
+            g2.fillRect(0, 0, w, h);
+        }
+        g2.dispose();
+        return out;
     }
 
     public BasketballCanvas(BasketballGame game) {
@@ -58,24 +97,17 @@ public class BasketballCanvas extends vocaland.ui.components.RoundedPanel {
         int curW = getWidth();
         int curH = getHeight();
 
-        g2.setPaint(new GradientPaint(0, 0, GRADIENT_TOP, 0, curH, GRADIENT_BOTTOM));
-        g2.fillRect(0, 0, curW, curH);
-        if (courtBackground.getWidth(this) > 0 && courtBackground.getHeight(this) > 0) {
-            double backgroundScale = Math.max((double) curW / courtBackground.getWidth(this),
-                    (double) curH / courtBackground.getHeight(this));
-            int backgroundWidth = (int) Math.ceil(courtBackground.getWidth(this) * backgroundScale);
-            int backgroundHeight = (int) Math.ceil(courtBackground.getHeight(this) * backgroundScale);
-            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            g2.drawImage(courtBackground, (curW - backgroundWidth) / 2, (curH - backgroundHeight) / 2,
-                    backgroundWidth, backgroundHeight, this);
-            g2.setColor(new Color(255, 255, 255, 145));
-            g2.fillRect(0, 0, curW, curH);
-        }
-
         if (curW <= 0 || curH <= 0) {
             g2.dispose();
             return;
         }
+
+        // 배경(그라데이션 + 코트 사진 + 흰 막)은 크기가 바뀔 때만 새로 만듦
+        if (backgroundCache == null || backgroundCache.getWidth() != curW || backgroundCache.getHeight() != curH) {
+            backgroundCache = createBackground(curW, curH);
+        }
+        g2.drawImage(backgroundCache, 0, 0, null);
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
 
         double scale = Math.min(curW / BasketballGame.BASE_W, curH / BasketballGame.BASE_H);
         double logicalW = curW / scale;

@@ -19,6 +19,8 @@ public final class LocalData {
 
     private final Path directory;
     private String currentId;
+    // words.txt 는 프로그램이 바꾸지 않으므로 처음 한 번만 읽어 둠 (단어 맞힐 때마다 600줄을 다시 읽던 렉 수정)
+    private List<Word> wordCache;
 
     public LocalData(Path directory) {
         this.directory = directory;
@@ -78,10 +80,23 @@ public final class LocalData {
         }
     }
 
+    // 파일 전체를 다시 쓰지 않고 끝에 한 줄만 덧붙임 (records.txt 가 길어져도 느려지지 않게)
     private void append(String file, String row) {
-        List<String> rows = new ArrayList<>(read(file));
-        rows.add(row);
-        write(file, rows);
+        try {
+            Path path = directory.resolve(file);
+            boolean needsNewline = false;
+            if (Files.exists(path) && Files.size(path) > 0) {
+                try (java.nio.channels.SeekableByteChannel ch = Files.newByteChannel(path)) {
+                    java.nio.ByteBuffer last = java.nio.ByteBuffer.allocate(1);
+                    ch.position(ch.size() - 1).read(last);
+                    needsNewline = last.get(0) != '\n';
+                }
+            }
+            String text = (needsNewline ? System.lineSeparator() : "") + row + System.lineSeparator();
+            Files.writeString(path, text, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            throw new UncheckedIOException("데이터 저장 실패: " + file, e);
+        }
     }
 
     public List<User> users() {
@@ -139,6 +154,7 @@ public final class LocalData {
     }
 
     public List<Word> words() {
+        if (wordCache != null) return wordCache;
         List<Word> result;
         try {
             result = vocaland.repository.WordRepository.read(directory.resolve("words.txt"));
@@ -146,6 +162,7 @@ public final class LocalData {
             throw new UncheckedIOException("단어 데이터 읽기 실패", error);
         }
         if (result.size() < 3 || result.stream().map(Word::meaning).distinct().count() < 3 || result.stream().map(Word::english).distinct().count() < 3) throw new IllegalStateException("게임에 사용할 서로 다른 단어와 뜻이 3개 이상 필요해요.");
+        wordCache = result;
         return result;
     }
 
