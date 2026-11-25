@@ -7,7 +7,11 @@ import vocaland.ui.components.BackgroundPanel;
 import java.awt.*;
 import java.nio.file.Path;
 import javax.swing.*;
+import java.util.ArrayList;
+import java.util.List;
+import vocaland.model.Word;
 import vocaland.service.LocalData;
+import vocaland.service.StudyService;
 import vocaland.ui.basketball.BasketballPanel;
 import vocaland.ui.rain.AcidRainPanel;
 import vocaland.ui.store.StorePanel;
@@ -79,7 +83,12 @@ public class MainFrame extends JFrame {
             if (basketball != null) basketball.stop();
             showLogin();
         }), () -> { ensureStudy(); study.showDifficultySelection(); layout.show(screens, "study"); },
-        () -> { ensureRain(); layout.show(screens, "rain"); rain.start(); },
+        () -> safe(() -> {
+            ensureRain();
+            rain.setCharacterImage(data.equippedImage("CHARACTER"));
+            rain.setWords(rainWords());
+            layout.show(screens, "rain"); rain.start();
+        }),
         () -> safe(() -> {
             ensureBasketball();
             basketball.setBallImage(data.equippedImage("BALL"));
@@ -95,11 +104,35 @@ public class MainFrame extends JFrame {
 
     private void ensureRain() {
         if (rain != null) return;
-        rain = new AcidRainPanel(words);
+        rain = new AcidRainPanel(data.words().stream()
+                .map(w -> new String[]{w.english(), w.meaning(), w.difficulty()}).toList());
         rain.setOnBackToMain(back);
         rain.setOnGameOver((score, level, missed) -> safe(() -> data.finishGame("RAIN", "NORMAL", score)));
         rain.setOnAnswer((word, correct) -> safe(() -> data.recordAnswer(word, correct)));
         screens.add(rain, "rain");
+    }
+
+    private List<String[]> rainWords() {
+        StudyService study = null;
+        try {
+            study = new StudyService(Path.of("data", "words.txt"), Path.of("data", "records.txt"));
+        } catch (Exception ignored) {
+        }
+        String userId = data.current() == null ? null : data.current().id();
+        List<String[]> pool = new ArrayList<>();
+        for (Word w : data.words()) {
+            int weight = 1;
+            if (study != null && userId != null) {
+                try {
+                    weight = study.getWordWeight(userId, w.id());
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
+            for (int i = 0; i < weight; i++) {
+                pool.add(new String[]{w.english(), w.meaning(), w.difficulty()});
+            }
+        }
+        return pool;
     }
 
     private void ensureBasketball() {
