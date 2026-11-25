@@ -1,4 +1,6 @@
-package vocaland.ui;
+package vocaland.ui.components;
+
+import vocaland.ui.theme.Theme;
 
 import java.awt.Color;
 import java.awt.Cursor;
@@ -13,6 +15,12 @@ public class RoundedButton extends JButton {
     private static final Color SHADOW = new Color(32, 50, 15, 65);
 
     private final int radius;
+    private boolean selectionIndicatorVisible;
+
+    public void setSelectionIndicatorVisible(boolean visible) {
+        selectionIndicatorVisible = visible;
+        repaint();
+    }
 
     public RoundedButton(String text) {
         this(text, 16);
@@ -70,6 +78,9 @@ public class RoundedButton extends JButton {
             g.fillRoundRect(1, 1 + SHADOW_DEPTH - drop, width, height, arc, arc);
 
             Color fill = Theme.PRIMARY;
+            if (selectionIndicatorVisible && !isSelected()) {
+                fill = Theme.PRIMARY_TINT;
+            }
             if (!isEnabled()) {
                 fill = Theme.PRIMARY_TINT;
             } else if (pressed) {
@@ -81,6 +92,11 @@ public class RoundedButton extends JButton {
             g.setColor(fill);
             g.fillRoundRect(1, 1, width, height, arc, arc);
             super.paintComponent(g);
+            if (selectionIndicatorVisible && isSelected()) {
+                g.setColor(Theme.PRIMARY_PRESSED);
+                g.setStroke(new java.awt.BasicStroke(2f));
+                g.drawRoundRect(2, 2, width - 2, height - 2, arc, arc);
+            }
         } finally {
             g.dispose();
         }
