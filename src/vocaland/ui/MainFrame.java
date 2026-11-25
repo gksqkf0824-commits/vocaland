@@ -91,9 +91,25 @@ public class MainFrame extends JFrame {
         }),
         () -> safe(() -> {
             ensureBasketball();
-            basketball.setBallImage(data.equippedImage("BALL"));
-            basketball.setHoopImage(data.equippedImage("HOOP"));
-            layout.show(screens, "basketball"); basketball.start();
+            String equippedBall = data.equippedImage("BALL");
+            String equippedHoop = data.equippedImage("HOOP");
+            basketball.setBallImage(equippedBall);
+            basketball.setHoopImage(equippedHoop);
+
+            boolean isNeonEquipped = equippedBall != null && equippedHoop != null
+                    && equippedBall.endsWith("ball_neon.png") && equippedHoop.endsWith("hoop_neon.png");
+            boolean isGoldEquipped = equippedBall != null && equippedHoop != null
+                    && equippedBall.endsWith("ball_gold.png") && equippedHoop.endsWith("hoop_gold.png");
+
+            basketball.setOnOpenStore(() -> safe(() -> {
+                ensureStore();
+                store.refreshData();
+                layout.show(screens, "store");
+            }));
+
+            layout.show(screens, "basketball");
+            basketball.start();
+            basketball.syncEquippedSet(isNeonEquipped, isGoldEquipped);
         }),
         () -> safe(() -> { ensureStore(); store.refreshData(); layout.show(screens, "store"); }),
         () -> safe(() -> { ensureRanking(); ranking.refreshData(); layout.show(screens, "scoreboard"); }));
