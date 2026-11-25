@@ -1,5 +1,7 @@
 package vocaland.ui.basketball;
 
+import vocaland.ui.util.ImagePaths;
+
 import javax.swing.*;
 import java.awt.*;
 
@@ -15,7 +17,7 @@ import java.awt.*;
  * drawBall()             : 농구공 스프라이트 그리기
  * drawHitboxDebug()      : 골대(백보드, 림, 통과선) 및 농구공 충돌 판정 영역 시각화 그리기
  */
-public class BasketballCanvas extends JPanel {
+public class BasketballCanvas extends vocaland.ui.components.RoundedPanel {
 
     private static final Color GRADIENT_TOP = Color.WHITE;
     private static final Color GRADIENT_BOTTOM = new Color(236, 247, 226);
@@ -23,13 +25,28 @@ public class BasketballCanvas extends JPanel {
     private static final boolean SHOW_HITBOX_DEBUG = false;
 
     private final BasketballGame game;
-    private final Image ballImg = new ImageIcon("images/basketball-ball.png").getImage();
-    private final Image hoopImg = new ImageIcon("images/basketball-hoop.png").getImage();
+    private final Image courtBackground = new ImageIcon(
+            ImagePaths.ROOT + ImagePaths.GAME_BASKETBALL_BACKGROUND).getImage();
+    private Image ballImg = new ImageIcon(ImagePaths.ROOT + ImagePaths.STORE_BASKETBALL_BALL_BASIC).getImage();
+    private Image hoopImg = new ImageIcon(ImagePaths.ROOT + ImagePaths.STORE_BASKETBALL_HOOP_BASIC).getImage();
+
+    public void setHoopImage(String path) {
+        ImageIcon icon = new ImageIcon(path == null ? ImagePaths.ROOT + ImagePaths.STORE_BASKETBALL_HOOP_BASIC : path);
+        if (icon.getIconWidth() > 0) hoopImg = icon.getImage();
+        repaint();
+    }
+
+    public void setBallImage(String path) {
+        ImageIcon icon = new ImageIcon(path == null ? ImagePaths.ROOT + ImagePaths.STORE_BASKETBALL_BALL_BASIC : path);
+        if (icon.getIconWidth() > 0) ballImg = icon.getImage();
+        repaint();
+    }
 
     public BasketballCanvas(BasketballGame game) {
         this.game = game;
         setLayout(new GridBagLayout());
-        setOpaque(true);
+        setOpaque(false);
+        setBorder(new vocaland.ui.components.RoundedBorder(new Color(181, 205, 157), 2));
     }
 
     @Override
@@ -43,6 +60,17 @@ public class BasketballCanvas extends JPanel {
 
         g2.setPaint(new GradientPaint(0, 0, GRADIENT_TOP, 0, curH, GRADIENT_BOTTOM));
         g2.fillRect(0, 0, curW, curH);
+        if (courtBackground.getWidth(this) > 0 && courtBackground.getHeight(this) > 0) {
+            double backgroundScale = Math.max((double) curW / courtBackground.getWidth(this),
+                    (double) curH / courtBackground.getHeight(this));
+            int backgroundWidth = (int) Math.ceil(courtBackground.getWidth(this) * backgroundScale);
+            int backgroundHeight = (int) Math.ceil(courtBackground.getHeight(this) * backgroundScale);
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g2.drawImage(courtBackground, (curW - backgroundWidth) / 2, (curH - backgroundHeight) / 2,
+                    backgroundWidth, backgroundHeight, this);
+            g2.setColor(new Color(255, 255, 255, 145));
+            g2.fillRect(0, 0, curW, curH);
+        }
 
         if (curW <= 0 || curH <= 0) {
             g2.dispose();

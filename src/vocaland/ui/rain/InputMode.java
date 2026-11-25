@@ -9,8 +9,8 @@ package vocaland.ui.rain;
  * getGuide() : 시작 화면에 보일 안내 문구
  */
 public enum InputMode {
-    SPELLING("영어 철자 입력", "뜻에 맞는 영어 단어를 입력하세요."),
-    MEANING("한글 뜻 입력", "영어 단어의 뜻을 한글로 입력하세요.");
+    SPELLING("영어 입력", "뜻에 맞는 영어 단어를 입력하세요."),
+    MEANING("한글 입력", "단어의 뜻을 한글로 입력하세요.");
 
     private final String label;
     private final String guide;
