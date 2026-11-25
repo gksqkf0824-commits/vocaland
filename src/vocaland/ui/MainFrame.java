@@ -1,66 +1,143 @@
 package vocaland.ui;
 
-import java.awt.CardLayout;
-import java.awt.Dimension;
-import java.util.List;
-import javax.swing.JFrame;
-import javax.swing.JPanel;
-import vocaland.service.WordService;
+import vocaland.ui.lobby.LobbyPanel;
+import vocaland.ui.login.LoginPanel;
+import vocaland.ui.components.BackgroundPanel;
+
+import java.awt.*;
+import java.nio.file.Path;
+import javax.swing.*;
+import vocaland.service.LocalData;
 import vocaland.ui.basketball.BasketballPanel;
 import vocaland.ui.rain.AcidRainPanel;
+import vocaland.ui.store.StorePanel;
+import vocaland.ui.scoreboard.ScoreboardPanel;
+import vocaland.ui.study.MatchingPanel;
+import vocaland.ui.study.StudyPanel;
 
 public class MainFrame extends JFrame {
-    private static final String MAIN = "main";
-    private static final String RAIN = "rain";
-    private static final String BASKETBALL = "basketball";
-
-    private final CardLayout cards = new CardLayout();
-    private final JPanel screens = new JPanel(cards);
+    private final LocalData data;
+    private AcidRainPanel rain;
+    private BasketballPanel basketball;
+    private LobbyPanel lobby;
+    private StudyPanel study;
+    private MatchingPanel matching;
+    private StorePanel store;
+    private ScoreboardPanel ranking;
+    private java.util.List<String[]> words;
+    private CardLayout layout;
+    private JPanel screens;
+    private Runnable back;
 
     public MainFrame() {
         setTitle("보카랜드");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-
-        MainPanel mainPanel = new MainPanel();
-        AcidRainPanel rainPanel = createRainPanel();
-
-        // 메인 → 산성비
-        mainPanel.setOnOpenRain(() -> {
-            cards.show(screens, RAIN);
-            rainPanel.start();
-        });
-        // 산성비 → 메인 (AcidRainPanel이 나가기 전에 stop()을 호출함)
-        rainPanel.setOnBackToMain(() -> cards.show(screens, MAIN));
-
-        // 메인 → 농구 (words.txt 단어 사용, 비어 있으면 BasketballPanel이 임시 단어 사용)
-        BasketballPanel basketballPanel = new BasketballPanel(new WordService().getGameWords());
-        mainPanel.setOnOpenBasketball(() -> {
-            cards.show(screens, BASKETBALL);
-            basketballPanel.start();
-        });
-        // 농구 → 메인
-        basketballPanel.setOnBackToMain(() -> {
-            basketballPanel.stop();
-            cards.show(screens, MAIN);
-        });
-
-        screens.add(mainPanel, MAIN);
-        screens.add(rainPanel, RAIN);
-        screens.add(basketballPanel, BASKETBALL);
-        setContentPane(screens);
-
         setMinimumSize(new Dimension(800, 650));
         setSize(1000, 750);
         setLocationRelativeTo(null);
+        // 로그인 화면에서 이름을 입력하는 동안 로비 → 나머지 화면 순서로 이미지를 미리 읽어 둠
+        vocaland.ui.util.ImageAssets.preloadInBackground(vocaland.ui.util.ImagePaths.ROOT,
+                "logo", "store/character", "store", "text", "game", "store/basketball", "store/background");
+        data = new LocalData(Path.of("data"));
+        showLogin();
+        if (data.current() != null) safe(this::showApplication);
     }
 
-    // words.txt 단어로 산성비 생성, 파일이 비어 있으면 게임에 들어 있는 임시 단어 사용
-    private AcidRainPanel createRainPanel() {
-        List<String[]> words = new WordService().getGameWords();
-        if (words.isEmpty()) {
-            System.err.println("[words.txt] 단어가 없어 임시 단어로 산성비를 시작합니다.");
-            return new AcidRainPanel();
+    private void safe(Runnable action) {
+        try { action.run(); }
+        catch (RuntimeException error) {
+            JOptionPane.showMessageDialog(this, error.getMessage(), "처리할 수 없어요", JOptionPane.ERROR_MESSAGE);
         }
-        return new AcidRainPanel(words);
+    }
+
+    private void showLogin() {
+        BackgroundPanel.setBackgroundImage(null);
+        setContentPane(new LoginPanel(name -> safe(() -> {
+            data.login(name);
+            showApplication();
+        })));
+        revalidate(); repaint();
+    }
+
+    /*
+     * 로그인 직후에는 로비만 만들고, 나머지 화면은 처음 들어갈 때 만든다.
+     * (예전엔 모든 화면을 한꺼번에 만들어서 로그인 [확인] 후 몇 초씩 멈췄음)
+     */
+    private void showApplication() {
+        words = data.wordPairs();
+        layout = new CardLayout();
+        screens = new JPanel(layout);
+        rain = null; basketball = null; study = null; matching = null; store = null; ranking = null;
+        back = () -> safe(() -> {
+            BackgroundPanel.setBackgroundImage(data.equippedImage("BACKGROUND"));
+            lobby.refreshProfile();
+            layout.show(screens, "main"); screens.repaint();
+        });
+        lobby = new LobbyPanel(data, () -> safe(() -> {
+            data.logout();
+            if (rain != null) rain.stop();
+            if (basketball != null) basketball.stop();
+            showLogin();
+        }), () -> { ensureStudy(); study.showDifficultySelection(); layout.show(screens, "study"); },
+        () -> { ensureRain(); layout.show(screens, "rain"); rain.start(); },
+        () -> safe(() -> {
+            ensureBasketball();
+            basketball.setBallImage(data.equippedImage("BALL"));
+            basketball.setHoopImage(data.equippedImage("HOOP"));
+            layout.show(screens, "basketball"); basketball.start();
+        }),
+        () -> safe(() -> { ensureStore(); store.refreshData(); layout.show(screens, "store"); }),
+        () -> safe(() -> { ensureRanking(); ranking.refreshData(); layout.show(screens, "scoreboard"); }));
+        screens.add(lobby, "main");
+        BackgroundPanel.setBackgroundImage(data.equippedImage("BACKGROUND"));
+        setContentPane(screens); layout.show(screens, "main"); revalidate(); repaint();
+    }
+
+    private void ensureRain() {
+        if (rain != null) return;
+        rain = new AcidRainPanel(words);
+        rain.setOnBackToMain(back);
+        rain.setOnGameOver((score, level, missed) -> safe(() -> data.finishGame("RAIN", "NORMAL", score)));
+        rain.setOnAnswer((word, correct) -> safe(() -> data.recordAnswer(word, correct)));
+        screens.add(rain, "rain");
+    }
+
+    private void ensureBasketball() {
+        if (basketball != null) return;
+        basketball = new BasketballPanel(words);
+        basketball.stop();
+        basketball.setOnBackToMain(back);
+        basketball.setOnGameOver((score, missed) -> safe(() -> data.finishGame("BASKETBALL", basketball.getDifficulty().name(), score)));
+        basketball.setOnAnswer((word, correct) -> safe(() -> data.recordAnswer(word, correct)));
+        screens.add(basketball, "basketball");
+    }
+
+    private void ensureStudy() {
+        if (study != null) return;
+        study = new StudyPanel(data.current().id(), back, () -> {
+            ensureMatching();
+            matching.setWordPool(study.getStudyWordPairs());
+            layout.show(screens, "pair");
+        });
+        screens.add(study, "study");
+    }
+
+    private void ensureMatching() {
+        if (matching != null) return;
+        matching = new MatchingPanel(() -> { study.refreshReviews(); layout.show(screens, "study"); }, words);
+        matching.setOnAnswer((word, correct) -> safe(() -> data.recordAnswer(word, correct)));
+        screens.add(matching, "pair");
+    }
+
+    private void ensureStore() {
+        if (store != null) return;
+        store = new StorePanel(data, back);
+        screens.add(store, "store");
+    }
+
+    private void ensureRanking() {
+        if (ranking != null) return;
+        ranking = new ScoreboardPanel(data, back);
+        screens.add(ranking, "scoreboard");
     }
 }

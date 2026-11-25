@@ -1,5 +1,7 @@
 package vocaland.ui.rain;
 
+import vocaland.ui.util.ImagePaths;
+
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -11,13 +13,13 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import javax.swing.BorderFactory;
+import javax.swing.ImageIcon;
 import javax.swing.JComponent;
-import javax.swing.JPanel;
-import vocaland.ui.Theme;
+import vocaland.ui.theme.Theme;
 
 /*
  * RainGameCanvas - 단어가 떨어지는 영역 (그리기와 영역 안 배치 담당)
@@ -31,13 +33,15 @@ import vocaland.ui.Theme;
  * getGroundY()     : 바닥의 y좌표
  * doLayout()       : 안내창은 가운데, 입력칸은 바닥 가운데에 배치
  * paintComponent() : 배경 → 단어(게임 중에만) → 바닥 → 떠 있는 글자 → 레벨 순서로 그리기
+ * drawSky()        : 게임 배경 이미지 (없으면 그라데이션)
  * drawWord()       : 빗줄기 + 같은 크기의 단어 박스 (하트 단어는 빨간 네모 + 흰 글씨)
  * fitFont()        : 박스에 안 들어가는 긴 단어는 글자 크기를 줄여서 맞추기
  * drawGround()     : 산성비가 고인 바닥
  * drawPopups()     : 위로 올라가며 흐려지는 글자
  * drawLevel()      : 왼쪽 위에 현재 레벨 (반투명 배경)
  */
-public class RainGameCanvas extends JPanel {
+public class RainGameCanvas extends vocaland.ui.components.RoundedPanel {
+    // 입력칸(높이 50)이 바닥 안에 들어가야 해서 develop 값 64 유지
     public static final int GROUND_HEIGHT = 64;
 
     private static final Color SKY_TOP = Color.WHITE;
@@ -57,13 +61,16 @@ public class RainGameCanvas extends JPanel {
 
     private final RainGame game;
     private final List<Popup> popups = new ArrayList<>();
+    private final ImageIcon rainBackground = new ImageIcon(ImagePaths.ROOT + ImagePaths.GAME_RAIN_BACKGROUND);
+    private BufferedImage skyCache;
     private JComponent overlay;
     private JComponent input;
 
     public RainGameCanvas(RainGame game) {
         this.game = game;
+        // 안내창·입력칸을 doLayout()에서 직접 배치하므로 레이아웃 없음
         setLayout(null);
-        setBorder(BorderFactory.createLineBorder(Theme.TEXT, 2));
+        setBorder(new vocaland.ui.components.RoundedBorder(new java.awt.Color(181, 222, 103), 2));
     }
 
     public void setOverlay(JComponent overlay) {
@@ -157,8 +164,35 @@ public class RainGameCanvas extends JPanel {
     }
 
     private void drawSky(Graphics2D g, int width, int groundY) {
+        int height = groundY + GROUND_HEIGHT;
+        if (width <= 0 || height <= 0) return;
+        if (rainBackground.getIconWidth() > 0 && rainBackground.getIconHeight() > 0) {
+            // 매 프레임 큰 원본을 축소하면 느려서, 크기가 바뀔 때만 한 번 축소해 둔 그림을 씀
+            if (skyCache == null || skyCache.getWidth() != width || skyCache.getHeight() != height) {
+                skyCache = createSky(width, height);
+            }
+            g.drawImage(skyCache, 0, 0, null);
+            return;
+        }
         g.setPaint(new GradientPaint(0, 0, SKY_TOP, 0, groundY, SKY_BOTTOM));
         g.fillRect(0, 0, width, groundY);
+    }
+
+    private BufferedImage createSky(int width, int height) {
+        double scale = Math.max((double) width / rainBackground.getIconWidth(),
+                (double) height / rainBackground.getIconHeight());
+        int imageWidth = (int) Math.ceil(rainBackground.getIconWidth() * scale);
+        int imageHeight = (int) Math.ceil(rainBackground.getIconHeight() * scale);
+        BufferedImage sky = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = sky.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.drawImage(rainBackground.getImage(), (width - imageWidth) / 2,
+                    (height - imageHeight) / 2, imageWidth, imageHeight, null);
+        } finally {
+            g.dispose();
+        }
+        return sky;
     }
 
     private void drawWord(Graphics2D g, FallingWord word) {

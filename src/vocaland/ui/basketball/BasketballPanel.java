@@ -1,14 +1,21 @@
 package vocaland.ui.basketball;
 
+import vocaland.ui.util.ImagePaths;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.border.LineBorder;
+import vocaland.ui.components.RoundedBorder;
+import vocaland.ui.components.RoundedPanel;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
+import vocaland.ui.components.RoundedButton;
+import vocaland.ui.util.LogoIcon;
+import vocaland.ui.theme.Theme;
+import vocaland.ui.components.BackgroundPanel;
 
 /*
  * BasketballPanel - 농구 게임 화면 (화면 조립, 타이머, 키보드 입력 처리)
@@ -26,11 +33,9 @@ import java.util.function.BiConsumer;
  * syncExtremeSwitchUI()   : 익스트림 모드 여부에 따른 상단 바 입체 스위치 표시 및 색상 동기화
  * main()                  : 혼자 테스트용 실행
  */
-public class BasketballPanel extends JPanel {
+public class BasketballPanel extends BackgroundPanel {
 
     private static final Color BG_WHITE = Color.WHITE;
-    private static final Color GREEN_BTN = new Color(174, 213, 129);
-    private static final Color GREEN_BTN_SHADOW = new Color(139, 179, 94);
     private static final Color BLUE_BTN = new Color(100, 181, 246);
     private static final Color BLUE_BTN_SHADOW = new Color(66, 145, 210);
     private static final Color RED_BTN = new Color(239, 83, 80);
@@ -49,21 +54,27 @@ public class BasketballPanel extends JPanel {
 
     private Runnable onBackToMain;
     private BiConsumer<Integer, List<String>> onGameOver;
+    private BiConsumer<String, Boolean> onAnswer;
+    public void setOnAnswer(BiConsumer<String, Boolean> listener) { onAnswer = listener; }
+    public BasketballGame.Difficulty getDifficulty() { return game.getDifficulty(); }
+    public void setHoopImage(String path) { canvas.setHoopImage(path); }
+    public void setBallImage(String path) { canvas.setBallImage(path); }
 
     private JLabel titleLabel;
     private PillButton extremeSwitchBtn;
     private JLabel lifeTextLabel;
     private JLabel scoreLabel;
-    private PillButton backBtn;
+    private JButton backBtn;
     private JPanel livesPanel;
     private JPanel wrongReviewBox;
     private JLabel wrongHeaderLabel;
     private JPanel wrongListPanel;
-    private JLabel helpLabel;
+    private final List<JLabel> helpLabels = new ArrayList<>();
 
     private JPanel startOverlay;
     private JPanel gameOverOverlay;
     private JLabel finalScoreLabel;
+    private JLabel missedSummaryLabel;
 
     private Timer gameTimer;
 
@@ -86,11 +97,10 @@ public class BasketballPanel extends JPanel {
         add(createTopBar(), BorderLayout.NORTH);
 
         JPanel centerWrapper = new JPanel(new BorderLayout(14, 0));
-        centerWrapper.setBackground(BG_WHITE);
+        centerWrapper.setOpaque(false);
 
         JPanel gameBoxWrapper = new JPanel(new BorderLayout());
-        gameBoxWrapper.setBackground(BG_WHITE);
-        gameBoxWrapper.setBorder(new LineBorder(BORDER_BLACK, 2));
+        gameBoxWrapper.setOpaque(false);
 
         startOverlay = createStartOverlay();
         gameOverOverlay = createGameOverOverlay();
@@ -115,7 +125,9 @@ public class BasketballPanel extends JPanel {
         });
 
         gameTimer = new Timer(20, e -> {
+            String questionEnglish = game.getCurrentEnglish();
             int result = game.updatePhysics();
+            if (result != 0 && onAnswer != null) onAnswer.accept(questionEnglish, result == 1);
             if (result == 1) {
                 updateTopStatus();
             } else if (result == 2) {
@@ -160,10 +172,10 @@ public class BasketballPanel extends JPanel {
     }
 
     private void initHeartIcons() {
-        Image raw = new ImageIcon("images/heart.png").getImage();
-        if (raw != null && raw.getWidth(null) > 0) {
-            Image scaled = raw.getScaledInstance(22, 22, Image.SCALE_SMOOTH);
-            activeHeartIcon = new ImageIcon(scaled);
+        ImageIcon heartIcon = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.GAME_HEART, 22, 22);
+        if (heartIcon != null) {
+            Image scaled = heartIcon.getImage();
+            activeHeartIcon = heartIcon;
 
             BufferedImage grayBuf = new BufferedImage(22, 22, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g2 = grayBuf.createGraphics();
@@ -246,106 +258,112 @@ public class BasketballPanel extends JPanel {
             g2.setColor(shadowColor);
             g2.fillRoundRect(0, shadowOffset, w, h - shadowOffset, 22, 22);
 
-            if (gradientEndColor != null) {
+            // 선택 안 된 버튼은 옅게(main), 선택된 버튼은 원래 색 + 그라데이션(develop)
+            if (!isSelected()) {
+                g2.setColor(pale(mainColor));
+            } else if (gradientEndColor != null) {
                 g2.setPaint(new GradientPaint(0, yOffset, mainColor, w, h - shadowOffset, gradientEndColor));
             } else {
                 g2.setColor(mainColor);
             }
             g2.fillRoundRect(0, yOffset, w, h - shadowOffset, 22, 22);
+            if (isSelected()) {
+                g2.setColor(shadowColor);
+                g2.setStroke(new BasicStroke(2f));
+                g2.drawRoundRect(1, yOffset + 1, w - 3, h - shadowOffset - 3, 20, 20);
+            }
 
             FontMetrics fm = g2.getFontMetrics();
-            int textX = (w - fm.stringWidth(getText())) / 2;
+            String text = (isSelected() ? "✓ " : "") + getText();
+            int textX = (w - fm.stringWidth(text)) / 2;
             int textY = yOffset + ((h - shadowOffset - fm.getHeight()) / 2) + fm.getAscent();
-            g2.setColor(getForeground());
-            g2.drawString(getText(), textX, textY);
+            g2.setColor(isSelected() ? getForeground() : Theme.TEXT);
+            g2.drawString(text, textX, textY);
 
             g2.dispose();
+        }
+
+        private static Color pale(Color c) {
+            return new Color((c.getRed() + 3 * 255) / 4, (c.getGreen() + 3 * 255) / 4, (c.getBlue() + 3 * 255) / 4);
         }
     }
 
     private JPanel createStartOverlay() {
-        JPanel card = new JPanel();
-        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
-        card.setBackground(BG_WHITE);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                new LineBorder(BORDER_BLACK, 1, true),
-                new EmptyBorder(26, 36, 26, 36)
-        ));
+        JPanel card = new vocaland.ui.components.GamePopupCard();
 
-        JLabel title = new JLabel("농구 게임");
-        title.setFont(new Font("맑은 고딕", Font.BOLD, 28));
+        JLabel title = new JLabel("알맞은 골대로 공을 던지세요");
+        title.setFont(new Font(Font.DIALOG, Font.BOLD, 20));
+        title.setForeground(Theme.TEXT);
         title.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JLabel subDesc = new JLabel(game.getMode().getGuide());
-        subDesc.setFont(new Font("맑은 고딕", Font.PLAIN, 14));
-        subDesc.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        JLabel modeTitle = new JLabel("모드 선택");
-        modeTitle.setFont(new Font("맑은 고딕", Font.BOLD, 15));
-        modeTitle.setAlignmentX(Component.CENTER_ALIGNMENT);
-
         JPanel modeBtnRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 0));
-        modeBtnRow.setBackground(BG_WHITE);
+        modeBtnRow.setOpaque(false);
 
-        PillButton meaningBtn = new PillButton("● 영어 보고 뜻 맞히기", GREEN_BTN, GREEN_BTN_SHADOW);
-        PillButton spellingBtn = new PillButton("○ 뜻 보고 영어 맞히기", new Color(235, 235, 235), new Color(200, 200, 200));
+        JButton meaningBtn = new RoundedButton("● 영어 보고 뜻 맞히기", 14);
+        meaningBtn.setFont(new Font(Font.DIALOG, Font.BOLD, 15));
+        JButton spellingBtn = new RoundedButton("○ 뜻 보고 영어 맞히기", 14);
+        spellingBtn.setFont(new Font(Font.DIALOG, Font.BOLD, 15));
 
         meaningBtn.addActionListener(e -> {
             game.setMode(BasketballMode.MEANING);
             meaningBtn.setText("● 영어 보고 뜻 맞히기");
-            meaningBtn.setButtonColors(GREEN_BTN, GREEN_BTN_SHADOW);
             spellingBtn.setText("○ 뜻 보고 영어 맞히기");
-            spellingBtn.setButtonColors(new Color(235, 235, 235), new Color(200, 200, 200));
-            subDesc.setText(game.getMode().getGuide());
-            helpLabel.setText("조작법 : [ ↑ / ↓ ] 각도 조절  |  [ ← / → ] 힘 조절  |  [ SPACE ] 슛   (" + game.getMode().getGuide() + ")");
         });
 
         spellingBtn.addActionListener(e -> {
             game.setMode(BasketballMode.SPELLING);
             spellingBtn.setText("● 뜻 보고 영어 맞히기");
-            spellingBtn.setButtonColors(GREEN_BTN, GREEN_BTN_SHADOW);
             meaningBtn.setText("○ 영어 보고 뜻 맞히기");
-            meaningBtn.setButtonColors(new Color(235, 235, 235), new Color(200, 200, 200));
-            subDesc.setText(game.getMode().getGuide());
-            helpLabel.setText("조작법 : [ ↑ / ↓ ] 각도 조절  |  [ ← / → ] 힘 조절  |  [ SPACE ] 슛   (" + game.getMode().getGuide() + ")");
         });
 
         modeBtnRow.add(meaningBtn);
         modeBtnRow.add(spellingBtn);
 
-        JLabel diffTitle = new JLabel("난이도 선택 (클릭 시 바로 시작)");
-        diffTitle.setFont(new Font("맑은 고딕", Font.BOLD, 15));
+        JLabel diffTitle = new JLabel("난이도 선택");
+        diffTitle.setFont(new Font(Font.DIALOG, Font.BOLD, 14));
+        diffTitle.setForeground(Theme.TEXT);
         diffTitle.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         JPanel diffBtnRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 16, 0));
-        diffBtnRow.setBackground(BG_WHITE);
+        diffBtnRow.setOpaque(false);
 
         PillButton easyBtn = new PillButton("이지 모드", BLUE_BTN, BLUE_BTN_SHADOW);
         easyBtn.setForeground(Color.WHITE);
-        easyBtn.addActionListener(e -> {
-            game.setDifficulty(BasketballGame.Difficulty.EASY);
-            startGamePlay();
-        });
 
         PillButton hardBtn = new PillButton("하드 모드", RED_BTN, RED_BTN_SHADOW);
         hardBtn.setForeground(Color.WHITE);
-        hardBtn.addActionListener(e -> {
-            game.setDifficulty(BasketballGame.Difficulty.HARD);
-            startGamePlay();
-        });
-
-        diffBtnRow.add(easyBtn);
-        diffBtnRow.add(hardBtn);
 
         JPanel expertBtnRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        expertBtnRow.setBackground(BG_WHITE);
+        expertBtnRow.setOpaque(false);
 
         PillButton expertBtn = new PillButton("익스퍼트 모드", PURPLE_BTN, PURPLE_BTN_END, PURPLE_BTN_SHADOW);
         expertBtn.setForeground(Color.WHITE);
+
+        // 난이도 버튼은 고르기만 하고, 시작은 아래 [시작하기] 버튼으로 (main 방식)
+        Runnable syncDifficulty = () -> {
+            BasketballGame.Difficulty d = game.getDifficulty();
+            easyBtn.setSelected(d == BasketballGame.Difficulty.EASY);
+            hardBtn.setSelected(d == BasketballGame.Difficulty.HARD);
+            expertBtn.setSelected(d == BasketballGame.Difficulty.EXTREME);
+            diffBtnRow.repaint();
+            expertBtnRow.repaint();
+        };
+        easyBtn.addActionListener(e -> {
+            game.setDifficulty(BasketballGame.Difficulty.EASY);
+            syncDifficulty.run();
+        });
+        hardBtn.addActionListener(e -> {
+            game.setDifficulty(BasketballGame.Difficulty.HARD);
+            syncDifficulty.run();
+        });
         expertBtn.addActionListener(e -> {
             game.setDifficulty(BasketballGame.Difficulty.EXTREME);
-            startGamePlay();
+            syncDifficulty.run();
         });
+        syncDifficulty.run();
+
+        diffBtnRow.add(easyBtn);
+        diffBtnRow.add(hardBtn);
 
         expertBtnRow.add(expertBtn);
 
@@ -355,11 +373,7 @@ public class BasketballPanel extends JPanel {
         expertDesc.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         card.add(title);
-        card.add(Box.createVerticalStrut(8));
-        card.add(subDesc);
-        card.add(Box.createVerticalStrut(18));
-        card.add(modeTitle);
-        card.add(Box.createVerticalStrut(8));
+        card.add(Box.createVerticalStrut(20));
         card.add(modeBtnRow);
         card.add(Box.createVerticalStrut(18));
         card.add(diffTitle);
@@ -369,36 +383,51 @@ public class BasketballPanel extends JPanel {
         card.add(expertBtnRow);
         card.add(Box.createVerticalStrut(6));
         card.add(expertDesc);
+        card.add(Box.createVerticalStrut(18));
+
+        JButton startButton = new RoundedButton("시작하기", 16);
+        startButton.setFont(new Font(Font.DIALOG, Font.BOLD, 20));
+        ImageIcon startIcon = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.TEXT_START, 100, 30);
+        if (startIcon != null) {
+            startButton.setIcon(startIcon);
+            startButton.setText("");
+        }
+        startButton.getAccessibleContext().setAccessibleName("시작하기");
+        startButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+        startButton.addActionListener(e -> startGamePlay());
+        card.add(startButton);
 
         return card;
     }
 
     private JPanel createGameOverOverlay() {
-        JPanel card = new JPanel();
-        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
-        card.setBackground(BG_WHITE);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                new LineBorder(BORDER_BLACK, 2, true),
-                new EmptyBorder(26, 42, 26, 42)
-        ));
+        JPanel card = new vocaland.ui.components.GamePopupCard();
 
-        JLabel overTitle = new JLabel("게임 오버!");
-        overTitle.setFont(new Font("맑은 고딕", Font.BOLD, 28));
-        overTitle.setForeground(new Color(220, 53, 69));
+        JLabel overTitle = new JLabel("게임 오버");
+        overTitle.setFont(new Font(Font.DIALOG, Font.BOLD, 30));
+        overTitle.setForeground(Theme.TEXT);
         overTitle.setAlignmentX(Component.CENTER_ALIGNMENT);
+        ImageIcon gameOverIcon = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.GAME_GAME_OVER, 240, 70);
+        if (gameOverIcon != null) {
+            overTitle.setIcon(gameOverIcon);
+            overTitle.setText("");
+        }
+        overTitle.getAccessibleContext().setAccessibleName("게임 오버");
 
         finalScoreLabel = new JLabel("최종 점수: 0점");
-        finalScoreLabel.setFont(new Font("맑은 고딕", Font.BOLD, 20));
-        finalScoreLabel.setForeground(Color.BLACK);
+        finalScoreLabel.setFont(new Font(Font.DIALOG, Font.BOLD, 20));
+        finalScoreLabel.setForeground(Theme.TEXT);
         finalScoreLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         JPanel topBtnRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 14, 0));
-        topBtnRow.setBackground(BG_WHITE);
+        topBtnRow.setOpaque(false);
 
-        PillButton retryBtn = new PillButton("다시하기", GREEN_BTN, GREEN_BTN_SHADOW);
+        JButton retryBtn = new RoundedButton("다시하기", 14);
+        retryBtn.setFont(new Font(Font.DIALOG, Font.BOLD, 17));
         retryBtn.addActionListener(e -> startGamePlay());
 
-        PillButton changeModeBtn = new PillButton("모드 변경", GREEN_BTN, GREEN_BTN_SHADOW);
+        JButton changeModeBtn = new RoundedButton("모드 변경", 14);
+        changeModeBtn.setFont(new Font(Font.DIALOG, Font.BOLD, 17));
         changeModeBtn.addActionListener(e -> {
             game.toReadyState();
             gameOverOverlay.setVisible(false);
@@ -410,25 +439,17 @@ public class BasketballPanel extends JPanel {
         topBtnRow.add(retryBtn);
         topBtnRow.add(changeModeBtn);
 
-        JPanel bottomBtnRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        bottomBtnRow.setBackground(BG_WHITE);
-
-        PillButton mainBtn = new PillButton("← 메인으로", new Color(230, 230, 230), new Color(195, 195, 195));
-        mainBtn.addActionListener(e -> {
-            stop();
-            if (onBackToMain != null) {
-                onBackToMain.run();
-            }
-        });
-        bottomBtnRow.add(mainBtn);
-
         card.add(overTitle);
         card.add(Box.createVerticalStrut(10));
         card.add(finalScoreLabel);
-        card.add(Box.createVerticalStrut(22));
+        card.add(Box.createVerticalStrut(6));
+        missedSummaryLabel = new JLabel("오답은 오른쪽에서 확인하세요.");
+        missedSummaryLabel.setFont(new Font(Font.DIALOG, Font.BOLD, 14));
+        missedSummaryLabel.setForeground(Theme.TEXT);
+        missedSummaryLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        card.add(missedSummaryLabel);
+        card.add(Box.createVerticalStrut(18));
         card.add(topBtnRow);
-        card.add(Box.createVerticalStrut(12));
-        card.add(bottomBtnRow);
 
         return card;
     }
@@ -448,7 +469,7 @@ public class BasketballPanel extends JPanel {
         if (onGameOver != null) {
             onGameOver.accept(game.getScore(), game.getMissedEnglishWords());
         }
-        finalScoreLabel.setText("최종 점수: " + game.getScore() + "점");
+        finalScoreLabel.setText("점수 " + String.format("%,d", game.getScore()));
         gameOverOverlay.setVisible(true);
     }
 
@@ -472,15 +493,23 @@ public class BasketballPanel extends JPanel {
 
     private JPanel createTopBar() {
         JPanel topBar = new JPanel(new BorderLayout());
-        topBar.setBackground(BG_WHITE);
+        topBar.setOpaque(false);
 
         titleLabel = new JLabel("농구 게임");
         titleLabel.setFont(new Font("맑은 고딕", Font.BOLD, 26));
         titleLabel.setForeground(Color.BLACK);
+        ImageIcon titleIcon = LogoIcon.load(ImagePaths.LOGO_BASKETBALL, 180, 58);
+        if (titleIcon != null) {
+            titleLabel.setIcon(titleIcon);
+            titleLabel.setText("");
+        }
+        titleLabel.getAccessibleContext().setAccessibleName("농구 게임");
+        titleLabel.setVerticalAlignment(JLabel.TOP);
+        titleLabel.setBorder(new EmptyBorder(4, 0, 0, 0));
         topBar.add(titleLabel, BorderLayout.WEST);
 
         JPanel rightInfo = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        rightInfo.setBackground(BG_WHITE);
+        rightInfo.setOpaque(false);
 
         extremeSwitchBtn = new PillButton("포물선: 하드", RED_BTN, RED_BTN_SHADOW);
         extremeSwitchBtn.setForeground(Color.WHITE);
@@ -491,37 +520,55 @@ public class BasketballPanel extends JPanel {
             canvas.repaint();
             requestFocusInWindow();
         });
+        // 포물선 전환 버튼은 항상 '선택된' 색으로 보이게
+        extremeSwitchBtn.setSelected(true);
 
-        JPanel lifeBox = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 4));
-        lifeBox.setBackground(BG_WHITE);
-        lifeBox.setBorder(BorderFactory.createCompoundBorder(
-                new LineBorder(BORDER_BLACK, 2),
-                new EmptyBorder(2, 10, 2, 10)
-        ));
+        JPanel lifeContent = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 0));
+        lifeContent.setOpaque(false);
 
         lifeTextLabel = new JLabel("남은 기회");
         lifeTextLabel.setFont(new Font("맑은 고딕", Font.BOLD, 15));
         lifeTextLabel.setForeground(Color.BLACK);
+        ImageIcon healthIcon = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.TEXT_HEALTH, 84, 24);
+        if (healthIcon != null) {
+            lifeTextLabel.setIcon(healthIcon);
+            lifeTextLabel.setText("");
+        }
+        lifeTextLabel.getAccessibleContext().setAccessibleName("남은 기회");
 
         livesPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
-        livesPanel.setBackground(BG_WHITE);
+        livesPanel.setOpaque(false);
 
-        lifeBox.add(lifeTextLabel);
-        lifeBox.add(livesPanel);
-
-        JPanel scoreBox = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 4));
-        scoreBox.setBackground(BG_WHITE);
-        scoreBox.setBorder(BorderFactory.createCompoundBorder(
-                new LineBorder(BORDER_BLACK, 2),
-                new EmptyBorder(2, 12, 2, 12)
-        ));
+        lifeContent.add(lifeTextLabel);
+        lifeContent.add(livesPanel);
+        JPanel lifeBox = statusBox(lifeContent, new EmptyBorder(7, 12, 7, 12));
 
         scoreLabel = new JLabel("점수 0");
-        scoreLabel.setFont(new Font("맑은 고딕", Font.BOLD, 16));
-        scoreLabel.setForeground(Color.BLACK);
-        scoreBox.add(scoreLabel);
+        scoreLabel.setFont(new Font(Font.DIALOG, Font.BOLD, 17));
+        scoreLabel.setForeground(Theme.TEXT);
+        ImageIcon scaledScore = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.TEXT_SCORE, 46, 25);
+        if (scaledScore != null) {
+            int width = scaledScore.getIconWidth();
+            int height = scaledScore.getIconHeight();
+            BufferedImage shiftedScore = new BufferedImage(width, height + 4, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = shiftedScore.createGraphics();
+            scaledScore.paintIcon(null, g, 0, 3);
+            g.dispose();
+            scoreLabel.setIcon(new ImageIcon(shiftedScore));
+        }
+        scoreLabel.setIconTextGap(8);
+        JPanel scoreBox = statusBox(scoreLabel, new EmptyBorder(5, 22, 9, 22));
 
-        backBtn = new PillButton("← 메인으로", GREEN_BTN, GREEN_BTN_SHADOW);
+        backBtn = new RoundedButton("← 메인으로", 18);
+        backBtn.setPreferredSize(new Dimension(132, 42));
+        backBtn.setBorder(new EmptyBorder(8, 12, 12, 18));
+        ImageIcon backIcon = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + ImagePaths.TEXT_GO_MAIN, 102, 24);
+        if (backIcon != null) {
+            backBtn.setIcon(backIcon);
+            backBtn.setText("");
+            backBtn.setBorder(new EmptyBorder(13, 12, 12, 18));
+        }
+        backBtn.getAccessibleContext().setAccessibleName("메인으로");
         backBtn.addActionListener(e -> {
             stop();
             if (onBackToMain != null) {
@@ -538,17 +585,46 @@ public class BasketballPanel extends JPanel {
         return topBar;
     }
 
+    private static JPanel statusBox(JComponent content, EmptyBorder padding) {
+        JPanel box = new JPanel(new BorderLayout()) {
+            @Override
+            public Dimension getPreferredSize() {
+                return new Dimension(super.getPreferredSize().width, 42);
+            }
+
+            @Override
+            protected void paintComponent(Graphics graphics) {
+                super.paintComponent(graphics);
+                Graphics2D g = (Graphics2D) graphics.create();
+                try {
+                    g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g.setColor(new Color(32, 50, 15, 65));
+                    g.fillRoundRect(1, 5, getWidth() - 2, getHeight() - 6, 36, 36);
+                    g.setColor(Theme.PRIMARY);
+                    g.fillRoundRect(1, 1, getWidth() - 2, getHeight() - 6, 36, 36);
+                } finally {
+                    g.dispose();
+                }
+            }
+        };
+        box.setOpaque(false);
+        box.setBorder(padding);
+        content.setOpaque(false);
+        box.add(content);
+        return box;
+    }
+
     private JPanel createWrongReviewBox() {
-        JPanel box = new JPanel(new BorderLayout(0, 8));
+        JPanel box = new RoundedPanel(new BorderLayout(0, 8));
         box.setPreferredSize(new Dimension(250, 0));
         box.setBackground(BG_WHITE);
         box.setBorder(BorderFactory.createCompoundBorder(
-                new LineBorder(BORDER_BLACK, 2),
+                new RoundedBorder(new Color(181, 205, 157), 2),
                 new EmptyBorder(12, 12, 12, 12)
         ));
 
         wrongHeaderLabel = new JLabel("오답 복습 (0)");
-        wrongHeaderLabel.setFont(new Font("맑은 고딕", Font.BOLD, 16));
+        wrongHeaderLabel.setFont(new Font(Font.DIALOG, Font.BOLD, 17));
         wrongHeaderLabel.setForeground(Color.BLACK);
         wrongHeaderLabel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER_BLACK),
@@ -569,14 +645,17 @@ public class BasketballPanel extends JPanel {
     }
 
     private JPanel createBottomHelpBar() {
-        JPanel bottomBar = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 8));
-        bottomBar.setBackground(BG_WHITE);
-        bottomBar.setBorder(new LineBorder(BORDER_BLACK, 2));
+        JPanel bottomBar = new RoundedPanel(new FlowLayout(FlowLayout.CENTER, 40, 8));
+        bottomBar.setOpaque(false);
+        bottomBar.setBorder(new RoundedBorder(new Color(181, 205, 157), 2));
 
-        helpLabel = new JLabel("조작법 : [ ↑ / ↓ ] 각도 조절  |  [ ← / → ] 힘 조절  |  [ SPACE ] 슛   (" + game.getMode().getGuide() + ")");
-        helpLabel.setFont(new Font("맑은 고딕", Font.BOLD, 14));
-        helpLabel.setForeground(Color.BLACK);
-        bottomBar.add(helpLabel);
+        for (String text : new String[] {"[ ↑ / ↓ ] 각도 조절", "[ ← / → ] 힘 조절", "[ SPACE ] 슛"}) {
+            JLabel label = new JLabel(text);
+            label.setFont(new Font("맑은 고딕", Font.BOLD, 15));
+            label.setForeground(Color.BLACK);
+            helpLabels.add(label);
+            bottomBar.add(label);
+        }
 
         return bottomBar;
     }
@@ -587,25 +666,27 @@ public class BasketballPanel extends JPanel {
         wrongListPanel.removeAll();
 
         for (BasketballGame.WrongRecord rec : records) {
-            JPanel card = new JPanel();
+            JPanel card = new RoundedPanel();
             card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
             card.setBackground(MINT_CARD);
             card.setBorder(BorderFactory.createCompoundBorder(
-                    new LineBorder(BORDER_BLACK, 1),
+                    new RoundedBorder(new Color(181, 205, 157), 1),
                     new EmptyBorder(8, 10, 8, 10)
             ));
-            card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 76));
+            card.setMaximumSize(new Dimension(Integer.MAX_VALUE,
+                    card.getInsets().top + card.getInsets().bottom
+                            + 3 * card.getFontMetrics(Theme.REVIEW_FONT).getHeight()));
 
             JLabel wordLbl = new JLabel("문제: " + rec.question);
-            wordLbl.setFont(new Font("맑은 고딕", Font.BOLD, 14));
+            wordLbl.setFont(Theme.REVIEW_FONT);
             wordLbl.setForeground(Color.BLACK);
 
             JLabel ansLbl = new JLabel("정답: " + rec.answer);
-            ansLbl.setFont(new Font("맑은 고딕", Font.BOLD, 13));
+            ansLbl.setFont(Theme.REVIEW_FONT);
             ansLbl.setForeground(new Color(46, 125, 50));
 
             JLabel myLbl = new JLabel("선택: " + rec.selected);
-            myLbl.setFont(new Font("맑은 고딕", Font.PLAIN, 13));
+            myLbl.setFont(Theme.REVIEW_FONT);
             myLbl.setForeground(new Color(220, 53, 69));
 
             card.add(wordLbl);
@@ -621,7 +702,9 @@ public class BasketballPanel extends JPanel {
     }
 
     private void updateTopStatus() {
-        scoreLabel.setText("점수 " + game.getScore());
+        scoreLabel.setText((scoreLabel.getIcon() == null ? "점수 " : "")
+                + String.format("%,d", game.getScore()));
+        scoreLabel.getAccessibleContext().setAccessibleName("점수 " + game.getScore());
         livesPanel.removeAll();
         int lives = game.getLives();
 
@@ -655,8 +738,10 @@ public class BasketballPanel extends JPanel {
         extremeSwitchBtn.setFont(new Font("맑은 고딕", Font.BOLD, (int) (14 * uiScale)));
         lifeTextLabel.setFont(new Font("맑은 고딕", Font.BOLD, (int) (15 * uiScale)));
         scoreLabel.setFont(new Font("맑은 고딕", Font.BOLD, (int) (16 * uiScale)));
-        wrongHeaderLabel.setFont(new Font("맑은 고딕", Font.BOLD, (int) (16 * uiScale)));
-        helpLabel.setFont(new Font("맑은 고딕", Font.BOLD, (int) (14 * uiScale)));
+        wrongHeaderLabel.setFont(new Font(Font.DIALOG, Font.BOLD, 17));
+        for (JLabel label : helpLabels) {
+            label.setFont(new Font("맑은 고딕", Font.BOLD, (int) (15 * uiScale)));
+        }
         backBtn.setFont(new Font("맑은 고딕", Font.BOLD, (int) (15 * uiScale)));
 
         revalidate();
