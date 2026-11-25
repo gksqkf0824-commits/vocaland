@@ -21,7 +21,9 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.IntConsumer;
 import javax.swing.BorderFactory;
@@ -66,7 +68,8 @@ import vocaland.ui.util.LogoIcon;
  * endGame()           : 게임 오버 처리, 점수와 코인 전달
  * showReady()         : 시작 안내창 (모드 선택, 시작하기)
  * showGameOver()      : 결과 안내창 (점수, 레벨, 코인, 놓친 단어 수, 오답 보기/다시하기/메인으로)
- * showWrongNote()     : 오답 노트 (놓친 단어만, 입력해야 했던 쪽은 노란 네모로 가리고 클릭할 때마다 공개/가리기)
+ * showWrongNote()     : 오답 노트 (놓친 단어를 한 번씩, 많이 놓친 순, 2번 이상은 ×N 표시, 정답은 노란 네모로 가리고 클릭할 때마다 공개/가리기)
+ * addReview()         : 오른쪽 오답 복습 목록에 추가 (이미 있는 단어면 줄을 늘리지 않고 "(×N)"으로 갱신)
  * createHeader()      : 상단 (게임 영역 가운데 제목, 남은 기회, 점수, 메인으로)
  * createCenter()      : 가운데 (게임 영역, 오른쪽 오답 복습 목록)
  * createInputField()  : 게임 영역 바닥에 놓이는 반투명 입력칸
@@ -100,6 +103,7 @@ public class AcidRainPanel extends BackgroundPanel {
     private final JTextField inputField = createInputField();
     private final JPanel overlay = new GamePopupCard();
     private final DefaultListModel<String> reviewModel = new DefaultListModel<>();
+    private final Map<String, Integer> reviewCounts = new LinkedHashMap<>();
     private final JLabel reviewTitle = new JLabel();
     private InputMode selectedMode = InputMode.SPELLING;
 
@@ -164,6 +168,7 @@ public class AcidRainPanel extends BackgroundPanel {
     private void startGame() {
         game.start(selectedMode);
         reviewModel.clear();
+        reviewCounts.clear();
         canvas.clearPopups();
         overlay.setVisible(false);
 
@@ -183,7 +188,7 @@ public class AcidRainPanel extends BackgroundPanel {
             if (onAnswer != null) {
                 onAnswer.accept(word.getEnglish(), false);
             }
-            reviewModel.addElement(word.getReviewText());
+            addReview(word.getReviewText());
             canvas.reactMiss();
             canvas.addPopup(word.isHeart() ? "♥ -1" : "놓침 -1", word.getX(), canvas.getGroundY() - 12, WRONG);
         }
@@ -251,6 +256,23 @@ public class AcidRainPanel extends BackgroundPanel {
         }
     }
 
+    private void addReview(String text) {
+        int count = reviewCounts.merge(text, 1, Integer::sum);
+        String shown = count > 1 ? text + " (×" + count + ")" : text;
+        if (count == 1) {
+            reviewModel.addElement(shown);
+            return;
+        }
+        int index = 0;
+        for (String key : reviewCounts.keySet()) {
+            if (key.equals(text)) {
+                break;
+            }
+            index++;
+        }
+        reviewModel.set(index, shown);
+    }
+
     private void refreshStatus() {
         hearts.setLives(game.getLives());
         scoreLabel.setText((scoreLabel.getIcon() == null ? "점수 " : "") + String.format("%,d", game.getScore()));
@@ -262,6 +284,7 @@ public class AcidRainPanel extends BackgroundPanel {
         stop();
         game.reset();
         reviewModel.clear();
+        reviewCounts.clear();
         canvas.clearPopups();
         inputField.setEnabled(false);
         inputField.setVisible(false);
@@ -316,8 +339,11 @@ public class AcidRainPanel extends BackgroundPanel {
         overlay.add(centered(label("점수 " + String.format("%,d", game.getScore())
                 + "   ·   Lv." + game.getLevel(), 27)));
         overlay.add(Box.createVerticalStrut(6));
+        int uniqueMissed = game.getUniqueMissedWords().size();
+        int totalMissed = game.getMissedWords().size();
         overlay.add(centered(label("코인 +" + game.getCoins()
-                + "   ·   놓친 단어 " + game.getMissedWords().size() + "개", 21)));
+                + "   ·   놓친 단어 " + uniqueMissed + "개"
+                + (totalMissed > uniqueMissed ? " (총 " + totalMissed + "번)" : ""), 21)));
         overlay.add(Box.createVerticalStrut(26));
 
         JPanel buttons = transparent(new FlowLayout(FlowLayout.CENTER, 14, 0));
@@ -330,8 +356,10 @@ public class AcidRainPanel extends BackgroundPanel {
             for (int i = 0; i < reviewModel.size(); i++) {
                 keep.add(reviewModel.get(i));
             }
+            Map<String, Integer> keepCounts = new LinkedHashMap<>(reviewCounts);
             showReady();
             keep.forEach(reviewModel::addElement);
+            reviewCounts.putAll(keepCounts);
             refreshStatus();
         });
         JButton main = button("메인으로", 22);
@@ -345,7 +373,8 @@ public class AcidRainPanel extends BackgroundPanel {
     }
 
     private void showWrongNote() {
-        List<FallingWord> missed = game.getMissedWords();
+        List<FallingWord> missed = game.getUniqueMissedWords();
+        missed.sort((a, b) -> Integer.compare(game.getMissCount(b.getEnglish()), game.getMissCount(a.getEnglish())));
         InputMode mode = game.getMode();
 
         overlay.removeAll();
@@ -383,10 +412,18 @@ public class AcidRainPanel extends BackgroundPanel {
             c.gridx = 2;
             c.anchor = GridBagConstraints.WEST;
             rows.add(new AnswerCell(word.getAnswerText(mode), wordFont, coverWidth), c);
+
+            int count = game.getMissCount(word.getEnglish());
+            if (count > 1) {
+                c.gridx = 3;
+                JLabel times = label("×" + count, 18);
+                times.setForeground(WRONG);
+                rows.add(times, c);
+            }
         }
         c.gridy = missed.size();
         c.gridx = 0;
-        c.gridwidth = 3;
+        c.gridwidth = 4;
         c.weighty = 1;
         rows.add(Box.createVerticalGlue(), c);
 

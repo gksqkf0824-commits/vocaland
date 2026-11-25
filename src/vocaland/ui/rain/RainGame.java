@@ -16,6 +16,7 @@ import java.util.Random;
  *
  * setWordPool()      : 출제할 단어 목록 교체 (같은 단어가 여러 번 들어 있으면 그만큼 자주 나옴)
  * recordMiss() / recordCorrect() : 게임 중 실시간 가중치 조절 (놓치면 +1, 연속 2번 맞히면 -1, 1~3배)
+ * getUniqueMissedWords() / getMissCount() : 놓친 단어를 한 번씩, 단어별 놓친 횟수 (화면 표시용)
  * reset()            : 처음 상태로 초기화
  * start()            : 고른 모드로 게임 시작
  * update()           : 한 프레임 진행 (단어 생성 → 이동 → 바닥 충돌), 바닥에 닿은 단어 반환
@@ -386,5 +387,23 @@ public class RainGame {
 
     public List<FallingWord> getMissedWords() {
         return Collections.unmodifiableList(missedWords);
+    }
+
+    public List<FallingWord> getUniqueMissedWords() {
+        Map<String, FallingWord> unique = new LinkedHashMap<>();
+        for (FallingWord word : missedWords) {
+            unique.putIfAbsent(word.getEnglish(), word);
+        }
+        return new ArrayList<>(unique.values());
+    }
+
+    public int getMissCount(String english) {
+        int count = 0;
+        for (FallingWord word : missedWords) {
+            if (word.getEnglish().equals(english)) {
+                count++;
+            }
+        }
+        return count;
     }
 }
