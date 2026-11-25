@@ -25,7 +25,3 @@ U002|B02|false
 U002|BG05|false
 U002|BG06|false
 U002|BG04|false
-U005|C03|true
-U005|B01|true
-U005|H01|true
-U005|BG01|true
