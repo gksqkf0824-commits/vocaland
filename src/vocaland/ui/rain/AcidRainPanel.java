@@ -59,6 +59,7 @@ import vocaland.ui.util.LogoIcon;
  * setOnCoinsEarned()  : 게임이 끝났을 때 얻은 코인을 받을 코드 등록 (상점 연결용)
  * setOnAnswer()       : 단어를 맞히거나 놓칠 때마다 (영어 단어, 정답 여부) 전달 (학습 기록용)
  * setCharacterImage() : 게임 영역에 서 있을 내 캐릭터 이미지 경로 (상점에서 장착한 것, null이면 기본)
+ * setWords()          : 다음 판부터 쓸 단어 목록 교체 (오답 가중치 반영용)
  * startGame()         : 고른 모드로 게임 시작
  * tick()              : 타이머가 0.03초마다 호출, 게임 진행 후 화면 갱신
  * submitAnswer()      : 입력값 판정, 정답 점수·하트·레벨업을 단어 위치에 표시
@@ -150,6 +151,10 @@ public class AcidRainPanel extends BackgroundPanel {
 
     public void setCharacterImage(String path) {
         canvas.setCharacter(path);
+    }
+
+    public void setWords(List<String[]> words) {
+        game.setWordPool(words);
     }
 
     public void setOnAnswer(BiConsumer<String, Boolean> onAnswer) {

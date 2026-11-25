@@ -1,7 +1,10 @@
 package vocaland.ui.rain;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -11,6 +14,8 @@ import java.util.Random;
 /*
  * RainGame - 산성비 게임 규칙 (점수, 목숨, 레벨, 코인, 하트 단어, 정답 판정)
  *
+ * setWordPool()      : 출제할 단어 목록 교체 (같은 단어가 여러 번 들어 있으면 그만큼 자주 나옴)
+ * recordMiss() / recordCorrect() : 게임 중 실시간 가중치 조절 (놓치면 +1, 연속 2번 맞히면 -1, 1~3배)
  * reset()            : 처음 상태로 초기화
  * start()            : 고른 모드로 게임 시작
  * update()           : 한 프레임 진행 (단어 생성 → 이동 → 바닥 충돌), 바닥에 닿은 단어 반환
@@ -22,7 +27,7 @@ import java.util.Random;
  * nextSpawnDelay()   : 다음 단어가 나올 때까지 시간 (평균 ± 랜덤)
  * spawnWord()        : 새 단어 하나 생성 (시작 5초 뒤부터 약 10% 확률로 하트 단어)
  * pickTier()         : 레벨별 비율(TIER_WEIGHTS)로 초급/중급/고급 중 하나 고르기
- * pickWord()         : 고른 난이도에서 화면에 없는 단어 우선으로 고르기
+ * pickWord()         : 고른 난이도에서 화면에 없고 최근 RECENT_LIMIT개 안에 안 나온 단어 우선으로 고르기
  * pickX()            : 다른 단어와 겹치지 않는 가로 위치 고르기
  */
 public class RainGame {
@@ -59,9 +64,17 @@ public class RainGame {
             {40, 45, 15},
     };
     private static final int LEVELS_PER_TIER_STEP = 2;
+    private static final int RECENT_LIMIT = 8;
+    private static final int PICK_TRIES = 30;
+    private static final int MAX_WEIGHT = 3;
+    private static final int CORRECT_TO_LOWER = 2;
 
-    private final List<String[]> wordPool;
+    private List<String[]> wordPool;
     private final Map<String, List<String[]>> poolByTier = new LinkedHashMap<>();
+    private final Deque<String> recentWords = new ArrayDeque<>();
+    private final Map<String, String[]> pairByWord = new HashMap<>();
+    private final Map<String, Integer> weights = new HashMap<>();
+    private final Map<String, Integer> streaks = new HashMap<>();
     private final List<FallingWord> fallingWords = new ArrayList<>();
     private final List<FallingWord> missedWords = new ArrayList<>();
     private final Random random = new Random();
@@ -80,7 +93,19 @@ public class RainGame {
         if (wordPool == null || wordPool.isEmpty()) {
             throw new IllegalArgumentException("단어 목록이 비어 있습니다.");
         }
-        this.wordPool = wordPool;
+        setWordPool(wordPool);
+        reset();
+    }
+
+    public void setWordPool(List<String[]> wordPool) {
+        if (wordPool == null || wordPool.isEmpty()) {
+            return;
+        }
+        this.wordPool = new ArrayList<>(wordPool);
+        poolByTier.clear();
+        pairByWord.clear();
+        weights.clear();
+        streaks.clear();
         for (String tier : TIERS) {
             poolByTier.put(tier, new ArrayList<>());
         }
@@ -88,13 +113,64 @@ public class RainGame {
             if (pair.length > 2 && poolByTier.containsKey(pair[2])) {
                 poolByTier.get(pair[2]).add(pair);
             }
+            pairByWord.putIfAbsent(pair[0], pair);
+            weights.merge(pair[0], 1, Integer::sum);
         }
-        reset();
+    }
+
+    private void recordMiss(String english) {
+        streaks.put(english, 0);
+        changeWeight(english, 1);
+    }
+
+    private void recordCorrect(String english) {
+        if (weights.getOrDefault(english, 1) <= 1) {
+            streaks.put(english, 0);
+            return;
+        }
+        int streak = streaks.getOrDefault(english, 0) + 1;
+        if (streak >= CORRECT_TO_LOWER) {
+            changeWeight(english, -1);
+            streak = 0;
+        }
+        streaks.put(english, streak);
+    }
+
+    private void changeWeight(String english, int delta) {
+        String[] pair = pairByWord.get(english);
+        int weight = weights.getOrDefault(english, 1);
+        int next = Math.max(1, Math.min(MAX_WEIGHT, weight + delta));
+        if (pair == null || next == weight) {
+            return;
+        }
+        List<String[]> tier = pair.length > 2 ? poolByTier.get(pair[2]) : null;
+        if (delta > 0) {
+            wordPool.add(pair);
+            if (tier != null) {
+                tier.add(pair);
+            }
+        } else {
+            removeOne(wordPool, english);
+            if (tier != null) {
+                removeOne(tier, english);
+            }
+        }
+        weights.put(english, next);
+    }
+
+    private static void removeOne(List<String[]> list, String english) {
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i)[0].equals(english)) {
+                list.remove(i);
+                return;
+            }
+        }
     }
 
     public void reset() {
         fallingWords.clear();
         missedWords.clear();
+        recentWords.clear();
         score = 0;
         lives = START_LIVES;
         level = 1;
@@ -134,6 +210,7 @@ public class RainGame {
                 it.remove();
                 landed.add(word);
                 missedWords.add(word);
+                recordMiss(word.getEnglish());
                 lives--;
             }
         }
@@ -163,6 +240,7 @@ public class RainGame {
         }
 
         fallingWords.remove(target);
+        recordCorrect(target.getEnglish());
         lastPoints = getPointsPerWord();
         score += lastPoints;
         correctCount++;
@@ -234,8 +312,12 @@ public class RainGame {
     private String[] pickWord() {
         List<String[]> pool = pickTier();
         String[] pair = pool.get(random.nextInt(pool.size()));
-        for (int i = 0; i < 10 && isOnScreen(pair[0]); i++) {
+        for (int i = 0; i < PICK_TRIES && (isOnScreen(pair[0]) || recentWords.contains(pair[0])); i++) {
             pair = pool.get(random.nextInt(pool.size()));
+        }
+        recentWords.addLast(pair[0]);
+        if (recentWords.size() > RECENT_LIMIT) {
+            recentWords.removeFirst();
         }
         return pair;
     }
