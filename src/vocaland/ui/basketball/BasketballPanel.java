@@ -25,7 +25,7 @@ import vocaland.ui.components.BackgroundPanel;
  * setEarnedCoins()          : 게임 종료 시 획득한 코인 수량 표시 갱신
  * syncEquippedSet()         : 상점 장착 아이템에 따른 세트 효과(네온/황금/없음) UI 및 게임 로직 동기화
  * createStartOverlay()      : 시작 대기 안내창 (모드 선택, 이지/하드/익스퍼트 난이도 선택)
- * positionStartOverlays()   : 창 크기 변경에 따른 오버레이 팝업 줌 배율 및 UI 크기 반응형 조절 1
+ * positionStartOverlays()   : 창 크기에 맞춘 오버레이 팝업(시작·게임오버·나가기 창) 줌 배율 및 중앙 정렬
  * createGameOverOverlay()   : 게임 오버 안내창 (최종 점수, 획득 코인, 다시하기, 모드 변경, 메인으로)
  * createExitConfirmOverlay(): 게임 도중 '메인으로' 클릭 시 점수 정산 및 나가기 확인 팝업 생성
  * startGamePlay()           : 선택한 모드와 난이도로 실제 게임 시작
@@ -34,7 +34,7 @@ import vocaland.ui.components.BackgroundPanel;
  * createTopBar()            : 상단 (제목, 익스퍼트 전용 포물선 스위치 버튼, 남은 기회, 점수, 메인으로)
  * createWrongReviewBox()    : 우측 (오답 복습 목록)
  * createBottomHelpBar()     : 하단 (키보드 조작법 안내 문구)
- * syncResponsiveLayout()    : 창 크기 변경에 따른 오버레이 팝업 줌 배율 및 UI 크기 반응형 조절 2
+ * syncResponsiveLayout()    : 창 크기에 따른 상·하단 바 폰트 및 우측 오답 패널 너비 반응형 조절
  * setOnBackToMain()         : ← 메인으로 버튼을 눌렀을 때 실행할 코드 등록 (화면 전환용)
  * setOnGameOver()           : 게임이 끝났을 때 점수·놓친 단어를 받을 코드 등록 (백엔드용)
  * start() / stop()          : 화면에 들어올 때 모드 선택 대기 상태로 초기화, 나갈 때 타이머 정지
@@ -876,7 +876,7 @@ public class BasketballPanel extends BackgroundPanel {
         exitCurrentScoreLabel.setFont(new Font("맑은 고딕", Font.BOLD, 16));
         exitCurrentScoreLabel.setForeground(Color.BLACK);
 
-        exitCurrentCoinLabel = new JLabel("획득한 코인: 0");
+        exitCurrentCoinLabel = new JLabel("획득 코인: 0");
         exitCurrentCoinLabel.setFont(new Font("맑은 고딕", Font.BOLD, 16));
         exitCurrentCoinLabel.setForeground(new Color(210, 130, 0));
         ImageIcon cIcon = vocaland.ui.util.ImageAssets.icon(ImagePaths.ROOT + "coin.png", 18, 18);
@@ -970,7 +970,7 @@ public class BasketballPanel extends BackgroundPanel {
         if (onGameOver != null) {
             onGameOver.accept(totalScoreForReward, game.getMissedEnglishWords());
         }
-        finalScoreLabel.setText("점수 " + String.format("%,d", game.getScore()));
+        finalScoreLabel.setText("최종 점수 " + String.format("%,d", game.getScore()));
         int coins = (customEarnedCoins != null) ? customEarnedCoins : (totalScoreForReward / 10);
         earnedCoinLabel.setText(String.format("획득 코인: %,d", coins));
         gameOverZoomWrapper.setVisible(true);
