@@ -3,7 +3,9 @@ package vocaland.ui.rain;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 /*
@@ -15,11 +17,12 @@ import java.util.Random;
  * submit()           : 입력값 판정, 맞힌 단어 반환 (오답이면 null)
  * getLastPoints()    : 마지막으로 맞힌 단어로 얻은 점수
  * getPointsPerWord() : 현재 레벨의 정답 점수 (100, 120, 140 ...)
- * getCoins()         : 점수로 받는 코인 (점수 ÷ 100)
+ * getCoins()         : 점수로 받는 코인 (점수 ÷ 10, LocalData.finishGame과 같은 규칙)
  * currentSpeed()     : 현재 레벨의 낙하 속도
  * nextSpawnDelay()   : 다음 단어가 나올 때까지 시간 (평균 ± 랜덤)
  * spawnWord()        : 새 단어 하나 생성 (시작 5초 뒤부터 약 10% 확률로 하트 단어)
- * pickWord()         : 화면에 없는 단어 우선으로 고르기
+ * pickTier()         : 레벨별 비율(TIER_WEIGHTS)로 초급/중급/고급 중 하나 고르기
+ * pickWord()         : 고른 난이도에서 화면에 없는 단어 우선으로 고르기
  * pickX()            : 다른 단어와 겹치지 않는 가로 위치 고르기
  */
 public class RainGame {
@@ -31,7 +34,7 @@ public class RainGame {
     public static final int CORRECT_PER_LEVEL = 10;
     private static final int BASE_POINTS = 100;
     private static final int POINTS_PER_LEVEL = 20;
-    private static final int SCORE_PER_COIN = 100;
+    private static final int SCORE_PER_COIN = 10;
 
     private static final double BASE_SPEED = 0.88;
     private static final double SPEED_PER_LEVEL = 0.165;
@@ -48,7 +51,17 @@ public class RainGame {
 
     private static final int SIDE_MARGIN = 12;
 
+    private static final String[] TIERS = {"초급", "중급", "고급"};
+    private static final int[][] TIER_WEIGHTS = {
+            {100, 0, 0},
+            {80, 20, 0},
+            {60, 35, 5},
+            {40, 45, 15},
+    };
+    private static final int LEVELS_PER_TIER_STEP = 2;
+
     private final List<String[]> wordPool;
+    private final Map<String, List<String[]>> poolByTier = new LinkedHashMap<>();
     private final List<FallingWord> fallingWords = new ArrayList<>();
     private final List<FallingWord> missedWords = new ArrayList<>();
     private final Random random = new Random();
@@ -68,6 +81,14 @@ public class RainGame {
             throw new IllegalArgumentException("단어 목록이 비어 있습니다.");
         }
         this.wordPool = wordPool;
+        for (String tier : TIERS) {
+            poolByTier.put(tier, new ArrayList<>());
+        }
+        for (String[] pair : wordPool) {
+            if (pair.length > 2 && poolByTier.containsKey(pair[2])) {
+                poolByTier.get(pair[2]).add(pair);
+            }
+        }
         reset();
     }
 
@@ -185,10 +206,36 @@ public class RainGame {
         fallingWords.add(new FallingWord(english, meaning, x, rate, heart));
     }
 
+    private List<String[]> pickTier() {
+        int[] weights = TIER_WEIGHTS[Math.min((level - 1) / LEVELS_PER_TIER_STEP, TIER_WEIGHTS.length - 1)];
+        int total = 0;
+        for (int i = 0; i < TIERS.length; i++) {
+            if (!poolByTier.get(TIERS[i]).isEmpty()) {
+                total += weights[i];
+            }
+        }
+        if (total == 0) {
+            return wordPool;
+        }
+        int roll = random.nextInt(total);
+        for (int i = 0; i < TIERS.length; i++) {
+            List<String[]> tier = poolByTier.get(TIERS[i]);
+            if (tier.isEmpty()) {
+                continue;
+            }
+            roll -= weights[i];
+            if (roll < 0) {
+                return tier;
+            }
+        }
+        return wordPool;
+    }
+
     private String[] pickWord() {
-        String[] pair = wordPool.get(random.nextInt(wordPool.size()));
+        List<String[]> pool = pickTier();
+        String[] pair = pool.get(random.nextInt(pool.size()));
         for (int i = 0; i < 10 && isOnScreen(pair[0]); i++) {
-            pair = wordPool.get(random.nextInt(wordPool.size()));
+            pair = pool.get(random.nextInt(pool.size()));
         }
         return pair;
     }
